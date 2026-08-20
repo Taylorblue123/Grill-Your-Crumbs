@@ -1,0 +1,75 @@
+{
+  "token_count": 1381,
+  "estimated_cost": null,
+  "model": "default",
+  "clarity_score": 80,
+  "structure_score": 90,
+  "issues": [
+    {
+      "type": "redundancy",
+      "line": 26,
+      "text": "question when fewer",
+      "message": "Phrase repeated from line 25",
+      "context": "4. Otherwise prefer a `general` question when fewer than two general questions h"
+    },
+    {
+      "type": "redundancy",
+      "line": 26,
+      "text": "when fewer than",
+      "message": "Phrase repeated from line 25",
+      "context": "4. Otherwise prefer a `general` question when fewer than two general questions h"
+    },
+    {
+      "type": "redundancy",
+      "line": 26,
+      "text": "questions have been",
+      "message": "Phrase repeated from line 25",
+      "context": "4. Otherwise prefer a `general` question when fewer than two general questions h"
+    },
+    {
+      "type": "redundancy",
+      "line": 26,
+      "text": "have been used",
+      "message": "Phrase repeated from line 25",
+      "context": "4. Otherwise prefer a `general` question when fewer than two general questions h"
+    },
+    {
+      "type": "redundancy",
+      "line": 29,
+      "text": "the user may",
+      "message": "Phrase repeated from line 25",
+      "context": "7. Reduce answer burden with a neutral scaffold describing the fields the user m"
+    }
+  ],
+  "suggestions": [
+    "Consider adding 2-3 few-shot examples for consistent outputs",
+    "Consider adding role context: \"You are an expert...\""
+  ],
+  "sections": [
+    {
+      "name": "Identity",
+      "lines": "1-4"
+    },
+    {
+      "name": "Input contract",
+      "lines": "5-20"
+    },
+    {
+      "name": "Selection policy",
+      "lines": "21-32"
+    },
+    {
+      "name": "Contrastive examples",
+      "lines": "33-55"
+    },
+    {
+      "name": "Output contract",
+      "lines": "56-63"
+    }
+  ],
+  "has_examples": false,
+  "example_count": 0,
+  "has_output_format": true,
+  "word_count": 610,
+  "line_count": 63
+}
