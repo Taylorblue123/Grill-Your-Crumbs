@@ -21,13 +21,14 @@ const el = (t,c,h)=>{const n=document.createElement(t);if(c)n.className=c;if(h!=
 const esc = t => String(t).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/"/g,'&quot;');
 const sleep = ms => new Promise(r=>setTimeout(r,ms));
 
-const SCREENS = ['landing','dash','setup','wb','done'];
+const SCREENS = ['landing','dash','opps','setup','wb','done'];
 let screenName = 'landing';
 let cursor = 0, rounds = [], answering = false, typing = null;
 let active = new Set(), promoted = new Set(), killed = new Set();
 let sessionCrumbs = new Set(CRUMBS.filter(c=>!c.off).map(c=>c.id));
 let undoStack = [], sessionSaved = false;
 let intakeWay = 'write', pickedExp = 'e1', ledgerKey = 'dim';
+let targetId = 'tg1', jdPasted = false;   // 本场的 Target（null = 不设目标）
 
 /* ═══════ 主题 ═══════ */
 function toggleTheme(){
@@ -40,13 +41,18 @@ function toggleTheme(){
 
 /* ═══════ 面板系统 ═══════
    三态循环：norm → min → norm；⤢ 单独切 max。列宽全在这里算。 */
-const PANELS = ['crumbs','grill','draft','ledger'];
-const PANEL_LABEL = { crumbs:'材料', grill:'拷问', draft:'简历活稿', ledger:'收获账本' };
+const PANELS = ['crumbs','grill','draft','ledger','target'];
+const PANEL_LABEL = { crumbs:'材料', grill:'拷问', draft:'简历活稿', ledger:'收获账本', target:'目标 JD' };
 const BASE = { crumbs:'minmax(196px,236px)', grill:'minmax(300px,1.05fr)',
-               draft:'minmax(320px,1.25fr)', ledger:'minmax(260px,0.95fr)' };
+               draft:'minmax(320px,1.25fr)', ledger:'minmax(260px,0.95fr)',
+               target:'minmax(260px,0.95fr)' };
 const MAXW = { crumbs:'minmax(320px,0.9fr)', grill:'minmax(460px,2.4fr)',
-               draft:'minmax(460px,2.4fr)', ledger:'minmax(400px,2.2fr)' };
-let panelState = { crumbs:'norm', grill:'norm', draft:'norm', ledger:'norm' };
+               draft:'minmax(460px,2.4fr)', ledger:'minmax(400px,2.2fr)',
+               target:'minmax(400px,2.2fr)' };
+/* 目标面板默认收起：Target 的「上下文」由顶部常驻条负责，
+   这个面板只在需要和简历并排比对时才展开。 */
+const PANEL_DEFAULT = { crumbs:'norm', grill:'norm', draft:'norm', ledger:'norm', target:'min' };
+let panelState = {...PANEL_DEFAULT};
 let barHidden = false;
 
 function layout(){
@@ -81,10 +87,7 @@ function maxPanel(k){
   toast(was ? `${PANEL_LABEL[k]}恢复正常宽度。` : `${PANEL_LABEL[k]}放大了。再点 ⤢ 恢复。`);
 }
 function openPanel(k){ if(panelState[k]==='min'){ panelState[k]='norm'; layout(); } }
-function resetLayout(){
-  panelState = { crumbs:'norm', grill:'norm', draft:'norm', ledger:'norm' };
-  layout(); toast('布局重置了。');
-}
+function resetLayout(){ panelState = {...PANEL_DEFAULT}; layout(); toast('布局重置了。目标面板默认收起——顶上那条已经告诉你这场是为谁做的。'); }
 function toggleBar(){
   barHidden = !barHidden;
   $('#panelbar').classList.toggle('hid', barHidden);
@@ -98,8 +101,9 @@ function go(name){
   $$('.screen').forEach(s=>s.classList.toggle('on', s.id === 's-'+name));
   if(name==='done')  renderReveal();
   if(name==='dash')  renderDash();
+  if(name==='opps')  renderOpps();
   if(name==='setup') renderSetup();
-  if(name==='wb'){ layout(); $('#cpIn').focus({preventScroll:true}); }
+  if(name==='wb'){ layout(); renderTarget(); $('#cpIn').focus({preventScroll:true}); }
   drawSteppers();
   const sc = $('.screen.on .scroll'); if(sc) sc.scrollTop = 0;
 }
@@ -136,13 +140,19 @@ function sheetHTML(force){
     if(killed.has(i)) return '';
     const bad  = b.some(s=>s.o==='inferred' && s.verified===false);
     const thin = b.every(s=>s.o==='grill') && !b.some(s=>force||s.hs.every(h=>active.has(h)));
+    const shown = force || b.some(x=>x.o!=='grill' || x.hs.every(h=>active.has(h)));
+    const chips = shown ? jdChips((ARTIFACT.bullet_req[i]||[]).filter(rid=>{
+      const t2 = curTarget(); if(!t2) return false;
+      return reqState(t2.reqs.find(x=>x.id===rid)||{}) === 'ok';
+    })) : '';
     return `<div class="bul${thin?' thin':''}" data-b="${i}"><span class="bd">—</span><span>${b.map(s=>segHTML(s,force)).join('')}
+      ${chips?`<div class="jdrow" style="padding-left:0">${chips}</div>`:''}
       ${bad?`<div class="rowacts"><button class="mini del" onclick="killSeg(${i})">删掉这条</button>
         <button class="mini" onclick="ev('confirm_segment')">我确认，属实</button></div>`:''}</span></div>`;
   }).join('');
   const extra = [...promoted].filter(id=>force||active.has(id)).map(id=>
     `<div class="bul promoted" data-p="${id}"><span class="bd">—</span><span>${segHTML(promotedSeg(id),force)}
-      <span class="pbadge">你手动加的</span>
+      <span class="pbadge">你手动加的</span>${jdChips(ARTIFACT.promoted_req[id])}
       <div class="rowacts"><button class="mini del" onclick="demote('${id}')">从简历移走</button></div></span></div>`).join('');
   return { bul: base + extra, intro: ARTIFACT.self_intro.map(s=>segHTML(s,force)).join('') };
 }
@@ -194,6 +204,131 @@ function toggleCrumb(id){
     : '加进本场了。下一轮提问会把它算进「我读过的材料」。', ()=>undo());
 }
 function aim(ids){ $$('.src').forEach(s=>s.classList.toggle('aim', ids.includes(s.dataset.id))); }
+
+
+/* ═══════ Target（JD）══════════════════════════════════════
+   一条要求的状态完全由「你有没有证据」决定，不是由匹配分决定：
+     ok    已有材料证据，或者依赖的事实已经被挖到
+     weak  只有沾边的证据
+     none  还没有，但问得出来
+     gap   你确实没有 —— 绝不为它生成文案
+   最后一种是这一版的核心：JD 是检查表，不是模板。 */
+function curTarget(){ return targetId ? TARGETS.find(t=>t.id===targetId) : null; }
+/* 换目标的唯一入口：JD 对齐标记长在简历片段上，所以换目标必须重挂稿子，
+   否则会留下上一个 JD 的 ↳ JD #n 标记。 */
+function applyTarget(id){
+  targetId = id;
+  mountSheetKeepScroll(); syncSegs(false); renderTarget(); counts();
+}
+function reqState(r){
+  if(r.fills && r.fills.length && r.fills.every(h=>active.has(h))) return 'ok';
+  if(r.ev && r.ev.length) return 'ok';
+  if(r.weak) return 'weak';
+  return r.gap ? 'gap' : 'none';
+}
+function reqTally(t){
+  const n = { ok:0, weak:0, none:0, gap:0 };
+  (t ? t.reqs : []).forEach(r=>n[reqState(r)]++);
+  return n;
+}
+/* 这条要求是刚刚被这一轮补上的吗 —— 用来做「○ → ●」的翻牌动画 */
+function justFilled(r, ids){
+  return r.fills && r.fills.length && ids && r.fills.some(h=>ids.includes(h)) && reqState(r)==='ok';
+}
+const REQ_MARK = { ok:'✓', weak:'◐', none:'○', gap:'✕' };
+const REQ_WORD = { ok:'已对上', weak:'只有弱证据', none:'还没有 · 问得出来', gap:'你确实没有' };
+
+function renderTarget(justIds){
+  const t = curTarget();
+  const bar = $('#tbar');
+  if(!t){
+    bar.innerHTML = `<span class="lb">目标</span>
+      <span class="tt none2">这一场没有设定目标 —— 只做通用打磨</span>
+      <span class="score"><button class="gbtn" style="padding:3px 10px;font-size:11.5px" onclick="go('setup')">去挑一个目标</button></span>`;
+    $('#reqList').innerHTML = `<p class="reqnote">这一场没设目标。<br><br>
+      设了目标之后，这里会是一张<b>要求清单</b>：哪几条你已经有证据、哪几条只有你能补、哪几条你确实没有。
+      提问也会按缺口排优先级。</p>`;
+    $('#pcTarget').textContent = '—'; $('#minTarget').textContent = '—';
+    return;
+  }
+  const n = reqTally(t), total = t.reqs.length;
+  bar.innerHTML = `<span class="lb">目标</span>
+    <span class="tt">${t.title}<small>${t.org}</small></span>
+    <span class="score">
+      <button class="rstat ok jump"   onclick="jumpReq('ok')"><i class="d"></i>对上 <b>${n.ok}</b></button>
+      <button class="rstat weak jump" onclick="jumpReq('weak')"><i class="d"></i>弱 <b>${n.weak}</b></button>
+      <button class="rstat none jump" onclick="jumpReq('none')"><i class="d"></i>还能问出 <b>${n.none}</b></button>
+      <button class="rstat gap jump"  onclick="jumpReq('gap')"><i class="d"></i>确实没有 <b>${n.gap}</b></button>
+      <button class="gbtn" style="padding:3px 10px;font-size:11.5px" onclick="openPanel('target');maxPanel('target')">看清单 →</button>
+    </span>`;
+  $('#pcTarget').textContent = `${n.ok}/${total}`;
+  $('#minTarget').textContent = n.ok;
+
+  const order = ['none','weak','ok','gap'];
+  $('#reqList').innerHTML =
+    `<p class="reqnote">${t.title} · ${t.org}　共 <b>${total} 条</b>要求。<br>
+       这里报的是<b>可数的状态</b>，不是「匹配度 78%」。</p>`
+    + order.map(st=>{
+      const list = t.reqs.filter(r=>reqState(r)===st);
+      if(!list.length) return '';
+      return `<div class="reqsec"><h6>${REQ_WORD[st]}<span class="ln"></span>${list.length}</h6>`
+        + list.map(r=>{
+          const jf = justFilled(r, justIds);
+          const ev = (r.fills||[]).filter(h=>active.has(h));
+          return `<div class="req ${st}${jf?' just':''}" data-r="${r.id}">
+            <div class="rh"><span class="mk">${REQ_MARK[st]}</span>
+              <span class="rt">${r.text}</span>
+              <span class="kd ${r.kind}">${REQ_KIND[r.kind]}</span></div>
+            ${st==='ok' && ev.length ? `<div class="ev2">↳ 第 ${TURN_BY_ID[HARVEST[ev[0]].turn].round} 轮挖到：${ev.map(h=>HARVEST[h].text).join(' ／ ')}</div>` : ''}
+            ${st==='ok' && !ev.length && r.ev ? `<div class="ev2">↳ ${r.ev.map(c=>`<span class="tg src">${SOURCE_ICON[CRUMB_BY_ID[c].type]} ${CRUMB_BY_ID[c].name}</span>`).join('')}</div>` : ''}
+            ${st==='weak' ? `<div class="ev2">↳ <b>差在哪：</b>${r.weak.text}
+                ${(r.weak.refs||[]).map(c=>`<span class="tg src">${CRUMB_BY_ID[c].name}</span>`).join('')}
+                ${r.fills?`<button class="ask" onclick="askFor('${r.id}')">去问这条 →</button>`:''}</div>` : ''}
+            ${st==='none' ? `<div class="ev2">↳ 材料里 <b>0 条</b>证据，但这件事<b>问得出来</b>
+                <button class="ask" onclick="askFor('${r.id}')">去问这条 →</button></div>` : ''}
+            ${st==='gap' ? `<div class="ev2">↳ 这条<b>问不出来</b>——你确实没有。不会为它生成任何文案。</div>` : ''}
+          </div>`;
+        }).join('') + '</div>';
+    }).join('')
+    + (n.gap ? `<div class="gapnote"><b>那 ${n.gap} 条「确实没有」的，我们不会替你圆。</b><br>
+        市面上按 JD 改简历的工具会给你编一句出来。我们把它留在这儿，是因为
+        <b>你需要知道自己真正缺什么</b>——那是去补技能的信号，不是去补文案的信号。</div>` : '');
+}
+function jumpReq(st){
+  openPanel('target');
+  const t = curTarget(); if(!t) return;
+  const n = reqTally(t)[st];
+  if(!n){ toast(`「${REQ_WORD[st]}」现在是 0 条。`); return; }
+  const first = t.reqs.find(r=>reqState(r)===st);
+  const node = $(`.req[data-r="${first.id}"]`);
+  if(node){ node.scrollIntoView({block:'center',behavior:'smooth'});
+    node.style.outline='2px solid var(--fg)'; node.style.outlineOffset='2px';
+    setTimeout(()=>{node.style.outline='';}, 1300); }
+  toast(`${REQ_WORD[st]}：${n} 条`);
+}
+/* 从要求清单直接跳到会补上它的那一轮 */
+function askFor(rid){
+  const t = curTarget(); const r = t.reqs.find(x=>x.id===rid);
+  const turn = TURNS.find(tn=>tn.jdReq && tn.jdReq.includes(rid))
+            || TURNS.find(tn=>(tn.harvest||[]).some(h=>(r.fills||[]).includes(h)));
+  if(!turn){ toast('这条没有对应的问题——它属于「问不出来」那一类。'); return; }
+  openPanel('grill');
+  if(TURNS.indexOf(turn) < cursor){
+    peekTurn(turn.id);
+    toast(`第 ${turn.round} 轮已经问过了，它补的就是这一条。`);
+  }else{
+    toast(`这条会在<b>第 ${turn.round} 轮</b>问到：${turn.question.slice(0,34)}…`);
+  }
+}
+/* 简历片段上的 JD 对齐标记 —— 和三色出处正交的第二个轴 */
+function jdChips(reqIds){
+  const t = curTarget(); if(!t || !reqIds || !reqIds.length) return '';
+  return reqIds.map(id=>{
+    const r = t.reqs.find(x=>x.id===id); if(!r) return '';
+    const i = t.reqs.indexOf(r) + 1;
+    return `<span class="jdchip" data-req="${id}" title="JD 第 ${i} 条：${esc(r.text)}">↳ JD #${i}</span>`;
+  }).join('');
+}
 
 /* ═══════ 面板 ④：收获账本（原 Thread 成果已并入） ═══════
    栏目 = 维度或标签；每条只标它来自第几轮，不重复问题本身。 */
@@ -317,7 +452,9 @@ function renderGrill(){
 
   const t = TURNS[cursor], dead = t.status==='flagged_useless';
   g.appendChild(el('div','qcard',
-   `<div class="qc-h"><span class="dimtag">${t.dim}</span>第 ${t.round} 轮 · 共 ${TURNS.length} 轮</div>
+   `<div class="qc-h"><span class="dimtag">${t.dim}</span>第 ${t.round} 轮 · 共 ${TURNS.length} 轮
+      <span style="margin-left:auto"><span class="qsrc ${t.src}">${
+        t.src==='jd' && curTarget() ? 'JD 缺口驱动' : '通用维度'}</span></span></div>
     <div class="qc-b">
       <div class="q">${t.question}</div>
       <div class="grip">
@@ -325,6 +462,8 @@ function renderGrill(){
         <span class="ev">${t.grip.ev}</span>
         ${t.grip.refs.length?`<button class="ref" onclick="showRefs(${JSON.stringify(t.grip.refs).replace(/"/g,'&quot;')})">看是哪 ${t.grip.refs.length} 条 →</button>`:''}
       </div>
+      ${(!dead && t.jdLine && curTarget() && t.src==='jd')?`<div class="jdwhy"><span class="h6">这一题是 JD 逼出来的</span>${t.jdLine}</div>`:''}
+      ${(!dead && t.src==='general' && curTarget())?`<div class="jdwhy" style="border-left-color:var(--gold);background:var(--gold-bg);color:var(--gold-ink)"><span class="h6" style="color:var(--gold)">这一题不是 JD 逼出来的</span>${t.jdLine||'预算里留了 2 轮打「只有你有」的东西——只盯着 JD 会把你身上最独特的部分漏掉。'}</div>`:''}
       ${dead?'':`<div class="why"><b>我为什么问这个</b>${t.why}</div>
       <div class="guess"><b>我的猜测 · 点头就行，不用从头写</b><div class="gbox">${t.guess}</div></div>`}
     </div>`));
@@ -336,6 +475,14 @@ function renderGrill(){
        <button class="act" onclick="acceptGuess()">就按你猜的算</button>
        <button class="act" onclick="skip()">跳过这题</button>
        <button class="act bad" onclick="flagBad()">这问题没意义</button>`));
+  if(curTarget()){
+    const used = rounds.map(r=>TURNS[r.ti].src);
+    g.appendChild(el('div','budget',
+      `<span>提问预算 <b>4 : 2</b>（JD 缺口 : 只有你有）</span>
+       <span class="bseg">${TURNS.map((tn,i)=>
+         `<i class="bs2 ${tn.src==='jd'?'jd':'gen'}${i>=cursor?' pend':''}" title="第 ${tn.round} 轮 · ${tn.src==='jd'?'JD 驱动':'通用维度'}"></i>`).join('')}</span>
+       <span>已用 ${used.filter(x=>x==='jd').length} : ${used.filter(x=>x==='general').length}</span>`));
+  }
   answering = false;
   tip0(dead ? '这一轮它问砸了——点「这问题没意义」，它会承认并换一个。'
             : '想自己说？直接在下面的输入框里写，回车发送。');
@@ -415,7 +562,9 @@ async function commit(text){
     `<span class="hl">拆出 ${ids.length} 条 →</span>`
     + ids.map(id=>`<span class="tg dim">#${HARVEST[id].dim}</span>`).join('')
     + (nCand?`<span class="tg">${nCand} 条列为候补</span>`:'')));
-  renderLedger(ids); mountSheetKeepScroll(); syncSegs(true);
+  renderLedger(ids); mountSheetKeepScroll(); syncSegs(true); renderTarget(ids);
+  const nFill = curTarget() ? curTarget().reqs.filter(r=>justFilled(r,ids)).length : 0;
+  if(nFill) setTimeout(()=>toast(`这一轮补上了 JD 的 ${nFill} 条要求。`), 900);
   bump(`+${ids.length} 条 · 稿子里 ${$$('#viewA .sg.grill:not(.ghost)').length} 处金色`);
   tipHot(`记进账本了：${ids.length} 条。不满意随时撤回，稿子会跟着退回去。`);
   $('#grill').scrollTop = $('#grill').scrollHeight;
@@ -444,7 +593,7 @@ function promote(id){
   if(!active.has(id)){ toast('这条已经被撤回了，先放回来再加。'); return; }
   if(promoted.has(id)){ toast('它已经在简历里了。'); return; }
   promoted.add(id); openPanel('draft');
-  mountSheetKeepScroll(); syncSegs(true); renderLedger(); counts();
+  mountSheetKeepScroll(); syncSegs(true); renderLedger(); counts(); renderTarget();
   const b = $(`.bul[data-p="${id}"]`);
   if(b){ b.classList.add('flash'); b.scrollIntoView({block:'center',behavior:'smooth'});
          setTimeout(()=>b.classList.remove('flash'),1100); }
@@ -454,7 +603,7 @@ function promote(id){
 function demote(id){
   if(!promoted.has(id)) return;
   promoted.delete(id);
-  mountSheetKeepScroll(); syncSegs(false); renderLedger(); counts();
+  mountSheetKeepScroll(); syncSegs(false); renderLedger(); counts(); renderTarget();
   undoStack.push({k:'demote', id});
   toast('移回候补了。事实还在账本里，只是不进这份简历。', ()=>undo());
 }
@@ -468,7 +617,7 @@ function undo(){
     const i = rounds.findIndex(r=>r.ti===u.ti);
     if(i >= 0) rounds.splice(i,1);
     cursor = u.ti; answering = false;
-    renderGrill(); renderLedger(); mountSheetKeepScroll(); syncSegs(false);
+    renderGrill(); renderLedger(); mountSheetKeepScroll(); syncSegs(false); renderTarget(); renderTarget();
     toast(`撤回了第 ${TURNS[u.ti].round} 轮${u.ids.length?`，账本少了 ${u.ids.length} 条，稿子里对应的金色片段已退回骨架`:''}。`);
   } else if(u.k === 'item'){
     active.add(u.id); renderLedger([u.id]); mountSheetKeepScroll(); syncSegs(true);
@@ -502,7 +651,7 @@ function dropItem(id){
   if(!active.has(id)) return;
   active.delete(id); promoted.delete(id);
   undoStack.push({k:'item', id});
-  renderLedger(); mountSheetKeepScroll(); syncSegs(false);
+  renderLedger(); mountSheetKeepScroll(); syncSegs(false); renderTarget();
   toast('撤回了 1 条新事实，稿子里依赖它的句子已退回骨架。', ()=>undo());
 }
 function killSeg(i){
@@ -568,6 +717,7 @@ function renderReveal(){
   $('#intro2').innerHTML = ARTIFACT.self_intro
     .filter(s=>s.o!=='grill' || s.hs.every(h=>active.has(h))).map(s=>segHTML(s,true)).join('');
 
+  renderJDBoard();
   $('#hbBody').innerHTML = DIMS.map(k=>{
     const items = [...active].filter(id=>HARVEST[id].dim===k);
     return `<div class="hcol"><h5>${k}<span class="b${items.length?'':' zero'} num">${items.length}</span></h5>
@@ -579,6 +729,31 @@ function renderReveal(){
         : `<p class="none">这一维度这次没挖到——不是“完成度 0%”，是这场没问到。</p>`}
     </div>`;
   }).join('');
+}
+function renderJDBoard(){
+  const t = curTarget(), box = $('#jdBoard');
+  if(!t){ box.innerHTML = ''; box.style.display='none'; return; }
+  box.style.display = '';
+  const n = reqTally(t), matched = t.reqs.filter(r=>reqState(r)==='ok');
+  const gaps = t.reqs.filter(r=>reqState(r)==='gap');
+  const left = t.reqs.filter(r=>['none','weak'].includes(reqState(r)));
+  box.innerHTML = `
+    <div class="hb-h"><h3>对上这个 JD 了吗 · ${t.title}</h3>
+      <small>${t.org} · 共 ${t.reqs.length} 条要求</small></div>
+    <div class="jdb-b">
+      <div class="jdcol"><h5>对上了<span class="b" style="background:var(--blue-bg);color:var(--blue-ink);border:1px solid var(--blue-bd)">${matched.length}</span></h5>
+        <ul>${matched.map(r=>`<li><i style="color:var(--blue)">✓</i><span>${r.text}
+          ${(r.fills||[]).some(h=>active.has(h))?`<span class="tg dim">第 ${TURN_BY_ID[HARVEST[r.fills.find(h=>active.has(h))].turn].round} 轮挖到的</span>`:'<span class="tg src">材料里本来就有</span>'}</span></li>`).join('')}</ul></div>
+      <div class="jdcol"><h5>还没补上<span class="b" style="background:var(--sunk2);color:var(--fg-mute)">${left.length}</span></h5>
+        ${left.length?`<ul>${left.map(r=>`<li><i>○</i><span>${r.text}<span class="tg">问得出来 · 回工作台</span></span></li>`).join('')}</ul>`
+          :'<p class="hcol none" style="font-style:italic;color:var(--fg-mute);font-size:11.5px">能问出来的都问完了。</p>'}</div>
+      <div class="honest">
+        <b>这份稿子对上了 ${matched.length} / ${t.reqs.length} 条。</b>
+        剩下 ${t.reqs.length-matched.length} 条里，有 <b>${gaps.length} 条是你确实没有的</b>：${gaps.map(r=>`「${r.text}」`).join('、')}。<br>
+        我们<b>没有替你圆这几条</b>——市面上按 JD 改简历的工具会给你编一句出来。
+        把它留在这儿，是因为你需要知道自己真正缺什么：那是去补技能的信号，不是去补文案的信号。
+      </div>
+    </div>`;
 }
 function finishToDash(){
   sessionSaved = true; ev('save_thread'); go('dash');
@@ -687,6 +862,149 @@ function renderDash(){
       <div class="t2">${SOURCE_LABEL[c.type]}${sessionCrumbs.has(c.id)?' · 本场使用中':''}</div></div>`).join('');
 }
 
+
+/* ═══════ 投喂页的 Target 选择 ═══════ */
+function setTarget(id){
+  jdPasted = false;
+  $('#jdPaste').style.display = id==='paste' ? 'block' : 'none';
+  applyTarget(id==='paste' ? null : id);
+  renderSetup();
+}
+function parseJD(){
+  const txt = $('#jdText').value.trim();
+  if(txt.length < 20){ toast('粘一段真的 JD 进来——职责和要求都要，我才拆得出条目。'); return; }
+  jdPasted = true; applyTarget('tg1');
+  renderSetup();
+  toast('拆成 14 条要求了。demo 里解析结果是预设的，真实产品里这一步是模型做的。');
+  setTimeout(()=>$('#tgSummary').scrollIntoView({block:'center',behavior:'smooth'}), 200);
+}
+function renderTargetPicker(){
+  const opts = TARGETS.filter(t=>!t.entryOnly).map(t=>{
+    const n = reqTally(t);
+    return `<button class="tgopt${targetId===t.id&&!$('#jdPaste')?'':''}${targetId===t.id?' on':''}" onclick="setTarget('${t.id}')">
+      <span class="tk">${t.kind} · 已收藏</span>
+      <h5>${t.title}</h5>
+      <p>${t.org} · ${t.reqs.length} 条要求<br>现在对上 <b>${n.ok}</b> · 还能问出 <b>${n.none+n.weak}</b> · 确实没有 <b>${n.gap}</b></p></button>`;
+  }).join('');
+  $('#tgOpts').innerHTML = opts
+    + `<button class="tgopt${$('#jdPaste')&&$('#jdPaste').style.display==='block'?' on':''}" onclick="setTarget('paste')">
+        <span class="tk">＋ 新的</span><h5>贴一段 JD</h5>
+        <p>把岗位描述整段粘进来，我拆成一条一条的要求。</p></button>`
+    + `<button class="tgopt${targetId===null&&$('#jdPaste').style.display!=='block'?' on':''}" onclick="setTarget(null)">
+        <span class="tk none">不设目标</span><h5>只做通用打磨</h5>
+        <p>不对任何岗位，就把这段经历本身讲清楚。提问全部走通用维度。</p></button>`;
+
+  const t = curTarget();
+  $('#tgSummary').innerHTML = !t
+    ? `<div class="hint">没设目标也能跑——提问会全部走通用维度，成果页不会有 JD 对齐那一栏。</div>`
+    : (()=>{ const n = reqTally(t);
+        return `<div class="picked" style="margin-top:14px">
+          <h5>${t.title} · ${t.org}　共 ${t.reqs.length} 条要求</h5>
+          <div style="display:flex;gap:6px;flex-wrap:wrap;margin-top:10px">
+            <span class="rstat ok"><i class="d"></i>已对上 <b>${n.ok}</b></span>
+            <span class="rstat weak"><i class="d"></i>只有弱证据 <b>${n.weak}</b></span>
+            <span class="rstat none"><i class="d"></i>还没有，但问得出来 <b>${n.none}</b></span>
+            <span class="rstat gap"><i class="d"></i>你确实没有 <b>${n.gap}</b></span>
+          </div>
+          <div class="reqlist" style="padding:12px 0 0">${
+            ['weak','none','gap'].map(st=>{
+              const list = t.reqs.filter(r=>reqState(r)===st).slice(0, st==='gap'?2:3);
+              if(!list.length) return '';
+              return list.map(r=>`<div class="req ${st}"><div class="rh">
+                <span class="mk">${REQ_MARK[st]}</span><span class="rt">${r.text}</span>
+                <span class="kd ${r.kind}">${REQ_KIND[r.kind]}</span></div>
+                ${st==='gap'?'<div class="ev2">↳ 这条问不出来，不会为它生成任何文案。</div>':
+                  '<div class="ev2">↳ 这条<b>只有你能补</b>，拷问时会优先问。</div>'}</div>`).join('');
+            }).join('')
+          }<p class="reqnote" style="padding-top:6px">…完整清单在工作台右边第五个面板里，随时能展开。</p></div>
+          <p class="note">提问预算 <b>4 : 2</b> —— 6 轮里 4 轮打 JD 缺口，2 轮打「只有你有」的东西。
+            只盯着 JD 会把你身上最独特的部分漏掉。</p>
+        </div>`; })();
+}
+
+
+/* ═══════ ①b 机会页 ═══════
+   岗位和人是同一件事：拿我的事实去对外部的要求。
+   所以这一页和工作区共用同一个事实库，只是换了个方向看。 */
+function renderOpps(){
+  const real = TARGETS.filter(t=>!t.entryOnly);
+  $('#oppCnt').textContent = TARGETS.length;
+
+  const totalNone = real.reduce((a,t)=>a+reqTally(t).none+reqTally(t).weak, 0);
+  $('#oppInbox').className = totalNone ? 'inbox' : 'inbox calm';
+  $('#oppInbox').innerHTML = totalNone
+    ? `<span class="t">待你决定：<b>${real.length} 个机会</b>还有 <b>${totalNone} 条要求</b>能靠拷问补上。<br>
+        <span style="opacity:.8">补缺口不是改文案——是把你其实做过、但从没说出口的事挖出来。</span></span>
+       <span class="a"><button class="mini2 gold" onclick="startFromTarget('${real[0].id}')">从「${real[0].title}」开始补</button></span>`
+    : `<span class="t">所有机会的缺口都补完了。剩下的是你确实没有的，那不是文案能解决的。</span>`;
+
+  $('#oppGrid').innerHTML = real.map(t=>{
+    const n = reqTally(t);
+    const best = bestExpFor(t);
+    return `<div class="opp">
+      <div class="opp-h">
+        <div class="t1">${t.title}<span class="kindtag ${t.kind==='RA'?'ra':''}">${t.kind}</span></div>
+        <div class="t2">${t.org} · 共 ${t.reqs.length} 条要求</div>
+      </div>
+      <div class="opp-score">
+        <span class="rstat ok"><i class="d"></i>对上 <b>${n.ok}</b></span>
+        <span class="rstat weak"><i class="d"></i>弱 <b>${n.weak}</b></span>
+        <span class="rstat none"><i class="d"></i>还能问出 <b>${n.none}</b></span>
+        <span class="rstat gap"><i class="d"></i>确实没有 <b>${n.gap}</b></span>
+      </div>
+      <div class="opp-rel">最相关的经历：<b>${best.title}</b>${best.note?` · ${best.note}`:''}<br>
+        ${n.gap?`那 <b>${n.gap}</b> 条确实没有的（${t.reqs.filter(r=>reqState(r)==='gap').map(r=>r.text.replace(/（.*?）/g,'')).join(' / ')}）<b>不会被写进稿子</b>。`:''}</div>
+      <div class="opp-f">
+        <button class="mini2 pri" onclick="startFromTarget('${t.id}')">去补缺口</button>
+        <button class="mini2" onclick="previewTarget('${t.id}')">看要求清单</button>
+        <button class="mini2" onclick="ev('tailor_resume')">出一版稿子</button>
+        <span class="when">${t.when}</span>
+      </div></div>`;
+  }).join('')
+  + (()=>{ const e = TARGETS.find(t=>t.entryOnly); return `<div class="opp entry">
+      <div class="opp-h"><div class="t1">${e.title}<span class="kindtag soon">先留个入口</span></div>
+        <div class="t2">对称匹配 · 和实习/RA 走的不是同一条路</div></div>
+      <div class="opp-rel" style="padding-top:4px">实习和 RA 是<b>不对称</b>的：对方发布要求，你去对。<br>
+        合伙人是<b>对称</b>的：双方都是一堆事实，要互相看。<br>
+        这一版先不做设计——它更接近下面「同频的人」那条路，而不是上面的要求清单。</div>
+      <div class="opp-f"><button class="mini2" onclick="ev('cofounder_waitlist')">留个位置</button>
+        <span class="when">未开始</span></div></div>`; })();
+
+  $('#peerGrid').innerHTML = PEERS.map(p=>`
+    <div class="peer">
+      <div class="ph"><span class="av2">${p.handle[1].toUpperCase()}</span>
+        <span><span class="hn">${p.handle}</span><span class="ln2">${p.line}</span></span></div>
+      <div class="why2">为什么给你看他</div>
+      <div class="ovl">${p.overlap.map(x=>`<span class="tg dim">#${x}</span>`).join('')}</div>
+      <div class="quote">${p.theirs}</div>
+      <div class="mine">↳ ${p.mineHint}</div>
+      <div class="a2"><button class="mini2" onclick="ev('open_peer_thread')">看他的 thread</button>
+        <button class="mini2" onclick="ev('say_hi')">打招呼</button></div>
+    </div>`).join('');
+
+  $('#visGrid').innerHTML = VISIBILITY.map(v=>`
+    <div class="vlayer${v.locked?' lock':''}">
+      <div class="vh"><span class="vn">${v.name}</span>
+        <span class="toggle2${v.on?' on':''}${v.locked?' dis':''}"><i></i></span></div>
+      <div class="vd">${v.desc}</div>
+      <span class="vs ${v.locked?'lockv':(v.on?'on':'off')}">${v.state}</span>
+    </div>`).join('');
+}
+function bestExpFor(t){
+  const cands = [{ id:'e1', title:'校园二手交易平台 · 推荐系统' }]
+    .concat(PAST_EXP.map(e=>({ id:e.id, title:e.title })));
+  if(t.id === 'tg2') return { title:'校园二手交易平台 · 推荐系统', note:'双塔召回 + 精排，方向完全对得上' };
+  return { title:'校园二手交易平台 · 推荐系统', note:`本场正在挖，已经补上 ${reqTally(t).ok} 条` };
+}
+/* 「去补缺口」＝ 开一场以这个目标为锚的拷问 —— 两块功能在这里合流 */
+function startFromTarget(id){
+  applyTarget(id); go('setup');
+  setTimeout(()=>toast(`目标换成「${curTarget().title}」了。下面的经历列表已经按「能对上几条」重排。`), 300);
+}
+function previewTarget(id){
+  applyTarget(id); go('wb'); openPanel('target'); maxPanel('target');
+}
+
 /* ═══════ ② 投喂：两种方式 ═══════ */
 function setWay(w){
   intakeWay = w;
@@ -697,12 +1015,25 @@ function setWay(w){
   renderSetup();
 }
 function pickExp(id){ pickedExp = id; renderSetup(); }
+function expCovers(e){
+  const t = curTarget(); if(!t) return null;
+  // 这段经历能对上 JD 的哪几条：它自己的材料 + 它能问出来的事实
+  const own = new Set(e.crumbs);
+  return t.reqs.filter(r=>
+    (r.ev||[]).some(c=>own.has(c)) ||
+    (r.weak && (r.weak.refs||[]).some(c=>own.has(c))) ||
+    (e.id==='e1' && (r.fills||[]).length)
+  ).length;
+}
 function renderSetup(){
-  $('#expOpts').innerHTML = EXPERIENCES.map(e=>{
+  renderTargetPicker();
+  const sorted = [...EXPERIENCES].sort((a,b)=>(expCovers(b)||0)-(expCovers(a)||0));
+  $('#expOpts').innerHTML = sorted.map(e=>{
     const na = e.id !== 'e1';
     return `<button class="eopt${pickedExp===e.id?' on':''}${na?' na':''}" onclick="pickExp('${e.id}')">
       <span class="et">${e.title}<span class="span">${e.span}</span>
         <span class="heat ${e.heat}">材料${e.heat}</span>
+        ${expCovers(e)!==null?`<span class="heat 中">能对上 JD ${expCovers(e)} 条</span>`:''}
         ${e.recommend?'<span class="heat 厚">建议先挖这段</span>':''}</span>
       <div class="why">${e.why}</div>
       <div class="fromrow"><span class="lb">聚自</span>${e.crumbs.map(c=>
@@ -749,8 +1080,8 @@ function restart(){
   active = new Set(); promoted = new Set(); killed = new Set(); undoStack = [];
   sessionCrumbs = new Set(CRUMBS.filter(c=>!c.off).map(c=>c.id));
   $('#cpIn').textContent = ''; composerReady(false);
-  panelState = { crumbs:'norm', grill:'norm', draft:'norm', ledger:'norm' };
-  mountSheet(); renderLedger(); renderGrill(); syncSegs(false); layout(); counts();
+  panelState = {...PANEL_DEFAULT};
+  mountSheet(); renderLedger(); renderGrill(); syncSegs(false); layout(); counts(); renderTarget();
 }
 
 /* ═══════ 交互杂项 ═══════ */
@@ -888,17 +1219,21 @@ async function autoTour(){
   tour = true; $('#autobar').classList.add('on');
   $$('#tourBtn0,#tourBtn1,#tourBtn2').forEach(b=>{b.textContent='停止演示 ❚❚';b.classList.add('on')});
   try{
-    restart(); setWay('write'); go('landing'); tourSay('⓪ 落地页');
+    restart(); setWay('write'); targetId='tg1'; go('landing'); tourSay('⓪ 落地页');
     const sc = $('#s-landing .scroll');
     await wait(2200); sc.scrollTo({top:$('#why').offsetTop-40,behavior:'smooth'});
     await wait(2600); sc.scrollTo({top:$('#how').offsetTop-40,behavior:'smooth'});
     await wait(2400);
 
-    go('dash'); tourSay('① 工作区 · 按「经历」组织，不按数据结构组织'); await wait(3600);
-    go('setup'); tourSay('② 投喂 · 方式 A：自己写一段'); await wait(2200);
-    setWay('pick'); tourSay('② 投喂 · 方式 B：从材料里挑，一个字都不用写'); await wait(4000);
+    go('dash'); tourSay('① 工作区 · 按「经历」组织'); await wait(3200);
+    go('opps'); tourSay('①b 机会 · 岗位和人，都是拿事实去对外部要求'); await wait(4200);
+    go('setup'); tourSay('② 投喂 · ① 产出什么（格式） ② 为谁做（Target）'); await wait(2400);
+    tourSay('② Target · JD 拆成 14 条要求：对上 / 弱 / 能问出 / 确实没有'); await wait(4000);
+    setWay('pick'); tourSay('② 方式 B · 经历按「能对上 JD 几条」重排'); await wait(3600);
     setWay('write');
-    go('wb'); tourSay('③ 工作台 · 四面板：材料 / 拷问 / 简历活稿 / 收获账本'); await wait(2400);
+    go('wb'); tourSay('③ 工作台 · 顶上常驻 Target 条，五个面板'); await wait(2600);
+    openPanel('target'); maxPanel('target'); tourSay('③ 第五面板 · 要求清单（默认收起，需要时展开）'); await wait(3600);
+    maxPanel('target'); cyclePanel('target'); await wait(900);
 
     for(let i=0;i<TURNS.length;i++){
       if(!tour) throw 'stop';
@@ -923,12 +1258,16 @@ async function autoTour(){
         promote('h10'); await wait(2400);
       }
       if(i === 3){
-        tourSay('把材料拖出本场 → 引用它的句子当场变成「无出处」'); await wait(1200);
-        toggleCrumb('c4'); await wait(2600); toggleCrumb('c4'); await wait(1400);
+        tourSay('答完 → JD 清单上那几条从 ○ 翻成 ✓'); await wait(1000);
+        openPanel('target'); await wait(2800); cyclePanel('target'); await wait(700);
+        tourSay('把材料拖出本场 → 引用它的句子当场变成「无出处」'); await wait(1000);
+        toggleCrumb('c4'); await wait(2400); toggleCrumb('c4'); await wait(1200);
       }
     }
     tourSay('④ 成果 · 原文 vs 成稿'); await wait(1200);
-    go('done'); await wait(3400);
+    go('done'); await wait(2600);
+    tourSay('④ 诚实的收尾：对上 12/14，剩下 2 条你确实没有');
+    $('#s-done .rv-b').scrollTo({top:$('#jdBoard').offsetTop-120, behavior:'smooth'}); await wait(4200);
     tourSay('⑤ 存回工作区 —— 那段经历变厚了一截');
     finishToDash(); await wait(3800);
     tourSay('演示结束 · 现在你可以自己点了');
@@ -945,7 +1284,7 @@ document.addEventListener('keydown', e=>{
   const typingNow = e.target.closest('[contenteditable],input,textarea');
   if((e.metaKey||e.ctrlKey) && e.key.toLowerCase()==='z'){ e.preventDefault(); if(screenName==='wb') undo(); return; }
   if(e.key === 'Escape'){ stopTour(); pop.style.display='none'; return; }
-  if(screenName==='wb' && !typingNow && ['1','2','3','4'].includes(e.key)){
+  if(screenName==='wb' && !typingNow && ['1','2','3','4','5'].includes(e.key)){
     e.preventDefault(); cyclePanel(PANELS[+e.key-1]);
   }
 });
@@ -971,7 +1310,7 @@ function seek(n){
     rounds.push({ti:cursor, kind, text:kind==='answered'?t.answer:''});
     cursor++;
   }
-  renderGrill(); renderLedger(); mountSheetKeepScroll(); syncSegs(false); counts();
+  renderGrill(); renderLedger(); mountSheetKeepScroll(); syncSegs(false); renderTarget(); renderTarget(); counts();
 }
 (function bootFromHash(){
   const p = new URLSearchParams(location.hash.slice(1));
@@ -980,11 +1319,12 @@ function seek(n){
   if(p.has('promote')) p.get('promote').split(',').forEach(id=>{ if(active.has(id)) promoted.add(id); });
   if(p.has('drop'))    p.get('drop').split(',').forEach(id=>sessionCrumbs.delete(id));
   if(p.has('saved'))   sessionSaved = true;
+  if(p.has('target'))  targetId = p.get('target')==='none' ? null : p.get('target');
   if(p.has('way'))     setWay(p.get('way'));
   if(p.has('ledger'))  setLedgerKey(p.get('ledger'));
   if(p.has('panel'))   p.get('panel').split(',').forEach(x=>{
     const [k,v] = x.split(':'); if(PANELS.includes(k)) panelState[k] = v || 'min';
   });
-  mountSheetKeepScroll(); syncSegs(false); renderLedger(); layout();
+  mountSheetKeepScroll(); syncSegs(false); renderLedger(); renderTarget(); layout();
   go(p.get('screen') || 'landing');
 })();

@@ -113,6 +113,7 @@
     <div class="brand"><span class="dot"></span>Grill Your Crumbs</div>
     <nav class="topnav" style="display:flex;gap:2px;margin-left:6px">
       <button class="navlink on">工作区</button>
+      <button class="navlink" onclick="go('opps')">机会</button>
       <button class="navlink" onclick="go('landing')">首页</button>
     </nav>
     <div class="tr">
@@ -151,6 +152,65 @@
         <p>原料层。同一条材料可以喂给多段经历。</p>
       </div>
       <div class="srcgrid" id="srcGrid"></div>
+    </div>
+  </div>
+</section>
+
+
+<!-- ══════════════ ①b 机会 · 顶层导航第二项 ══════════════ -->
+<section class="screen" id="s-opps">
+  <div class="top">
+    <div class="brand"><span class="dot"></span>Grill Your Crumbs</div>
+    <nav class="topnav" style="display:flex;gap:2px;margin-left:6px">
+      <button class="navlink" onclick="go('dash')">工作区</button>
+      <button class="navlink on">机会</button>
+      <button class="navlink" onclick="go('landing')">首页</button>
+    </nav>
+    <div class="tr">
+      <button class="theme" onclick="toggleTheme()" aria-label="切换主题"><span>◐</span></button>
+      <button class="gbtn" onclick="ev('add_target')">＋ 贴一个 JD</button>
+      <button class="gbtn pri" onclick="go('setup')">＋ 开一场新的 Grill</button>
+    </div>
+  </div>
+  <div class="scroll">
+    <div class="opps">
+      <div class="dhead">
+        <div>
+          <h1>机会</h1>
+          <p>岗位和人，本质是同一件事——<b>拿你的事实去对外部的要求</b>。<br>
+             所以这一页和工作区共用同一个事实库，只是换了个方向看。</p>
+        </div>
+      </div>
+
+      <div class="inbox" id="oppInbox"></div>
+
+      <div class="shelfhead">
+        <h2>岗位 / 机会</h2><span class="c num" id="oppCnt">3</span>
+        <p>每张卡都是可数的：<b>对上几条 · 弱几条 · 还能问出几条 · 你确实没有几条</b>。<br>
+           点「去补缺口」＝开一场以这个目标为锚的拷问。</p>
+      </div>
+      <div class="oppgrid" id="oppGrid"></div>
+
+      <div class="shelfhead">
+        <h2>同频的人</h2><span class="c num">3</span>
+        <p>不是「猜你喜欢」。每张卡都写清<b>为什么给你看他</b>——<br>你们哪几个标签重叠、各自的哪一条事实撞在一起。</p>
+      </div>
+      <div class="peerwrap">
+        <div class="phdr">⚠ <b>示意 · 数据虚构。</b>这一块是 placeholder：真实的匹配需要双边网络，现在还没有。
+          放在这里是为了先把<b>「匹配用什么算」</b>这件事定下来 —— 见下面的可见性分层。</div>
+        <div class="peergrid" id="peerGrid"></div>
+      </div>
+
+      <div class="shelfhead">
+        <h2>可见性</h2><span class="c">placeholder</span>
+        <p>你敢把日记丢进来，是因为我们承诺它只用来问问题。<br>
+           所以<b>匹配只在标签层发生</b>，事实原文默认不公开、逐条放行。</p>
+      </div>
+      <div class="vis" id="visGrid"></div>
+      <p class="hint" style="max-width:70ch;margin-top:12px">
+        这三层现在是静态展示。真做的时候，每条事实旁边会有一个可见性小图标，
+        工作区顶部会常驻一句「你有 N 条事实是公开的」并能一键收回。
+        <b>如果这层没做完，社交那块就不该上线</b>——它会给出一个我们不打算兑现的承诺。</p>
     </div>
   </div>
 </section>
@@ -202,8 +262,22 @@
       </div>
 
       <div class="blk">
-        <div class="blab">你要拿它去做什么 <i>FOR X</i></div>
+        <div class="blab">① 产出什么 <i>格式</i></div>
         <div class="chips" id="forx"></div>
+      </div>
+
+      <div class="blk">
+        <div class="blab">② 为谁做 <i>TARGET · 可留空</i></div>
+        <div class="tgopts" id="tgOpts"></div>
+        <div class="jdpaste" id="jdPaste" style="display:none">
+          <textarea class="ta" id="jdText" aria-label="粘贴 JD 原文"
+            placeholder="把岗位描述整段粘进来——职责、要求、加分项都要。我会拆成一条一条的要求，再告诉你哪几条你其实有、哪几条只有你能补、哪几条你确实没有。"></textarea>
+          <div class="hint" style="display:flex;gap:9px;align-items:center;flex-wrap:wrap">
+            <button class="gbtn" onclick="parseJD()">解析这段 JD →</button>
+            <span>解析完你会看到一张<b>要求清单</b>，不是一句「匹配度 78%」。</span>
+          </div>
+        </div>
+        <div id="tgSummary"></div>
       </div>
 
       <div class="blk">
@@ -253,6 +327,9 @@
   </div>
 
   <div class="wb">
+    <!-- 常驻 Target 条：这一场是为谁做的，永远可见 -->
+    <div class="tbar" id="tbar"></div>
+
     <!-- 面板控制条 -->
     <div class="panelbar" id="panelbar">
       <span class="pbLabel">面板</span>
@@ -260,6 +337,7 @@
       <button class="pchip" id="chip-grill"  onclick="cyclePanel('grill')"><span class="sq"></span>拷问<span class="k">2</span></button>
       <button class="pchip" id="chip-draft"  onclick="cyclePanel('draft')"><span class="sq"></span>简历活稿<span class="k">3</span></button>
       <button class="pchip" id="chip-ledger" onclick="cyclePanel('ledger')"><span class="sq"></span>收获账本<span class="k">4</span></button>
+      <button class="pchip" id="chip-target" onclick="cyclePanel('target')"><span class="sq"></span>目标 JD<span class="k">5</span></button>
       <div class="pbRight">
         <span class="pbLabel" style="letter-spacing:.3px;font-weight:500;text-transform:none">点一下收起 · 再点展开 · ⤢ 放大</span>
         <button class="gbtn" style="padding:3px 10px;font-size:11.5px" onclick="resetLayout()">重置布局</button>
@@ -372,6 +450,22 @@
           <div class="panel-f"><small>每条只标它来自第几轮 —— 问题本身在左边拷问栏，不重复一遍</small></div>
         </section>
 
+        <!-- ⑤ 目标 JD（默认收起） -->
+        <section class="panel tone min" id="p-target">
+          <button class="panel-min" onclick="cyclePanel('target')" title="展开目标 JD">
+            <span class="ic0">◎</span><span class="lbl">目标 JD</span><span class="n0 num" id="minTarget">0</span>
+          </button>
+          <div class="panel-h">
+            <h3>目标 · 要求清单</h3><span class="pc num" id="pcTarget">0</span>
+            <span class="pa">
+              <button class="picon" onclick="maxPanel('target')" title="放大">⤢</button>
+              <button class="picon" onclick="cyclePanel('target')" title="收起">›</button>
+            </span>
+          </div>
+          <div class="panel-b"><div class="reqlist" id="reqList"></div></div>
+          <div class="panel-f"><small>无证据的要求永远不会被写成简历文案</small></div>
+        </section>
+
       </div>
     </div>
   </div>
@@ -435,6 +529,8 @@
           <small id="hbSum">共 10 条新事实，来自 5 轮回答</small></div>
         <div class="hb-b" id="hbBody"></div>
       </div>
+
+      <div class="jdboard" id="jdBoard"></div>
 
       <!-- 明确的收尾动线：不要把人留在死胡同里 -->
       <div class="landing-strip">

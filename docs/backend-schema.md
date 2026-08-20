@@ -275,3 +275,93 @@ order by created_at desc;
 2. **`fact` 要不要做跨 thread 去重？** 同一件事在两场 grill 里被问到两次，会产生两条 fact。加一个 `similar_to uuid` 自引用做软合并，还是允许重复、让用户在 Dashboard 里手动合？我倾向先允许重复——过早合并会丢掉「同一件事第二次讲得更好」这个信息。
 
 3. **`artifact` 是快照还是活文档？** 现在设计成快照（有 `version`）。如果事实库更新了，旧简历要不要提示「有 2 条新事实可以加进来」？这决定了 Dashboard 上 artifact 卡片要不要一个「可更新」角标。
+
+---
+
+## 追加：Target（JD）三张表
+
+一个 JD 就是一个 `target`，拆出来的每条要求是一个 `requirement`。**缺口 = 没有任何 match 的 requirement**，一句 SQL 就能查出来喂给出题器。
+
+```sql
+create type target_kind as enum ('internship','ra','fulltime','cofounder');
+create type req_kind    as enum ('hard','preferred','implicit');
+create type match_kind  as enum ('strong','weak');
+
+create table target (
+  id         uuid primary key,
+  user_id    uuid not null references "user"(id) on delete cascade,
+  kind       target_kind not null,
+  title      text not null,
+  org        text,
+  raw_text   text not null,          -- JD 原文，要求要能点回这里
+  source_url text,
+  created_at timestamptz not null default now()
+);
+
+create table requirement (
+  id         uuid primary key,
+  target_id  uuid not null references target(id) on delete cascade,
+  text       text not null,
+  span_start int, span_end int,      -- 指回 raw_text 的字符位置 → 点得回原文
+  kind       req_kind not null,
+  ord        int not null,
+  fillable   bool not null default true,   -- false = 「你确实没有」，问不出来
+  unique (target_id, ord)
+);
+
+create table requirement_match (
+  requirement_id uuid not null references requirement(id) on delete cascade,
+  fact_id  uuid references fact(id)  on delete cascade,
+  crumb_id uuid references crumb(id) on delete cascade,
+  strength match_kind not null,
+  rationale text,                    -- weak 的时候必须说清「差在哪」
+  check (fact_id is not null or crumb_id is not null)
+);
+```
+
+外加两个可空外键：`thread.target_id`（这一场是为谁做的）和 `artifact_segment.requirement_id`（前端那个 `↳ JD #3`）。
+
+### 四种状态是算出来的，不是存出来的
+
+```sql
+create view requirement_state as
+select r.*,
+  case
+    when exists (select 1 from requirement_match m join fact f on f.id = m.fact_id
+                 where m.requirement_id = r.id and m.strength='strong' and f.retracted_at is null)
+      or exists (select 1 from requirement_match m
+                 where m.requirement_id = r.id and m.strength='strong' and m.crumb_id is not null)
+      then 'ok'
+    when exists (select 1 from requirement_match m where m.requirement_id = r.id and m.strength='weak')
+      then 'weak'
+    when r.fillable then 'none'      -- 还没有，但问得出来
+    else 'gap'                        -- 你确实没有
+  end as state
+from requirement r;
+```
+
+**撤回一条 fact，对应要求会自己从 `ok` 退回 `none`** —— 和成稿片段降级是同一个机制，不用写第二遍。
+
+### `fillable=false` 是一条产品红线，写进了 schema
+
+出稿的时候必须过滤：
+
+```sql
+-- 只有 state <> 'gap' 的要求才允许有对应的成稿片段
+select 1 from artifact_segment s
+join requirement_state rs on rs.id = s.requirement_id
+where s.artifact_id = $1 and rs.state = 'gap';   -- 这个查询必须永远返回 0 行
+```
+
+把它做成一条 CI 断言或者插入触发器。**为一条「你确实没有」的要求生成文案，是这个产品唯一不能犯的错。**
+
+### 提问预算 4 : 2
+
+`turn` 表加两列：
+
+```sql
+alter table turn add column source text not null default 'general';  -- 'jd' | 'general'
+alter table turn add column driven_by uuid[] default '{}';           -- 这一题打的是哪几条 requirement
+```
+
+出题器按 `4:2` 分配：4 轮从 `state in ('none','weak')` 的要求里挑，2 轮从「材料里 0 条证据的通用维度」里挑。比例可配，因为**只盯着 JD 会把用户身上最独特的东西漏掉**。

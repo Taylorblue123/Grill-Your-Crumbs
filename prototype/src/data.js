@@ -72,6 +72,7 @@ const isCand = id => (HARVEST[id].dest || '').startsWith('候补');
    grip：把握度不再是一个凭空的百分比，而是「材料里有几条提到过」——可数、可点。 */
 const TURNS = [
   { id:'t1', round:1, dim:'量化结果', status:'answered',
+    src:'jd', jdReq:['r7'], jdLine:'JD 第 7 条要「能用业务指标衡量自己的工作」。你的材料里有模型指标，<b>0 条</b>有业务指标。',
     grip:{ lv:'低', ev:'8 条材料里 <b>1 条</b>提到过效果（X 动态给了 CTR），<b>0 条</b>提到业务侧发生了什么', refs:['c7'] },
     question:'你说“效果还可以”——具体是哪个指标、从多少变到多少？除了模型指标，业务侧发生了什么？',
     why:'你的 X 动态里已经写了 CTR 1.8%→3.1%，所以这一段我不问。我不确定的是：这个提升换算成业务是什么。八份材料里没有一份提到过。',
@@ -80,6 +81,7 @@ const TURNS = [
     harvest:['h1','h2'] },
 
   { id:'t2', round:2, dim:'关键决策', status:'answered',
+    src:'jd', jdReq:['r2','r3','r4'], jdLine:'JD 有 3 条压在这上面（高并发 / 性能优化 / 独立排查）。你的笔记只写了现象，<b>结局和取舍一条都没有</b>。',
     grip:{ lv:'低', ev:'<b>1 条</b>笔记记了这次事故，但<b>0 条</b>写了结局，也<b>0 条</b>写了为什么这么选', refs:['c5'] },
     question:'notes-2025.md 里 5 月 18 号那次 P99 炸了、冷启动 40s——最后是怎么收场的？这个方案是谁提的？',
     why:'你的笔记只记录了问题，没有结局。而“为什么选了这个方案、而不是加机器”这件事，只有你自己知道。',
@@ -88,6 +90,7 @@ const TURNS = [
     harvest:['h3','h4','h5'] },
 
   { id:'t3', round:3, dim:'判断与协作', status:'answered',
+    src:'jd', jdReq:['r6','r9','r11'], jdLine:'JD 第 9 条要「跨团队沟通与说服」、第 11 条要「资源受限时的成本权衡」。这两条在材料里<b>各 0 条证据</b>。',
     grip:{ lv:'低', ev:'<b>1 条</b>日记提到你们吵过一架，<b>0 条</b>写了最后谁的方案落地、你拿什么说服的', refs:['c6'] },
     question:'日记里你和师兄为“要不要上 BERT”吵过一架。最后谁的方案落地了？你拿什么说服（或被说服）的？',
     why:'这是唯一一条被你自己标成“吵架”的记录。争执点通常是你判断力最集中的地方，也是面试官最爱追问的地方。',
@@ -96,6 +99,7 @@ const TURNS = [
     harvest:['h6','h7','h10'] },
 
   { id:'t4', round:4, dim:'角色边界', status:'answered',
+    src:'jd', jdReq:['r8'], jdLine:'JD 第 8 条要「带人 / code review 经验」。12 条材料里 <b>0 条</b>提到带人——但你日记里出现过「交接给学弟」。',
     grip:{ lv:'中', ev:'<b>2 条</b>材料写了你的头衔（“后端开发”/“Intern”），<b>0 条</b>说清你带没带人', refs:['c2','c8'] },
     question:'“做了大概半年”——这半年里你一直是一个人干，还是后期带过人？',
     why:'“负责后端和一部分模型”这句话把你的角色说小了。带人 / 不带人是简历上完全不同的两个层级，而所有材料对此都沉默。',
@@ -104,11 +108,13 @@ const TURNS = [
     harvest:['h8'] },
 
   { id:'t5', round:5, dim:'动机', status:'flagged_useless',
+    src:'general', jdReq:[], jdLine:'',
     grip:{ lv:'中', ev:'（这一轮我没找准方向：<b>0 条</b>具体依据，问了一个泛问题。）', refs:[] },
     question:'你能再多讲讲这个项目吗？',
     why:'', guess:'', answer:'', harvest:[] },
 
   { id:'t6', round:6, dim:'动机', status:'answered',
+    src:'general', jdReq:['r10'], jdLine:'这一题不是 JD 逼出来的 —— 预算里留了 2 轮打「只有你有」的东西。动机 JD 不会写，但它决定这段听起来是“完成任务”还是“主动解决问题”。',
     grip:{ lv:'低', ev:'<b>0 条</b>材料提到这个项目是怎么开始的——动机只存在你脑子里', refs:[] },
     question:'当初为什么是你去做这个推荐系统？是被分配的，还是你主动争取的？',
     why:'上一题被你标成没意义——你说得对，那是个空问。换个只有你能回答的：动机决定了这段经历讲出来是“完成任务”还是“主动解决问题”。',
@@ -119,6 +125,9 @@ const TURNS = [
 
 /* ── 成稿。金色片段用 hs 硬绑到它依赖的新事实条目 ── */
 const ARTIFACT = {
+  /* bullet_req[i] = 第 i 条 bullet 回答了 JD 的哪几条要求 */
+  bullet_req: [['r5','r7'], ['r2','r3','r4'], ['r6','r11','r9'], ['r8'], ['r10'], []],
+  promoted_req: { h5:['r4'], h10:['r9'] },
   resume_bullets: [
     [
       { t:'Built and shipped a two-tower retrieval + LightGBM ranking recommender for a campus C2C marketplace serving 120k requests/day,', o:'source', ref:'c4' },
@@ -159,7 +168,79 @@ const ARTIFACT = {
   stats:{ n_source:7, n_grill:9, n_inferred:2 }
 };
 
-const GOALS = ['投一份实习／校招简历','改我的 LinkedIn','准备面试自我介绍','写个人网站的项目页'];
+/* 产出物类型（格式）—— 和「为谁做」是正交的两件事 */
+const GOALS = ['简历 bullet','LinkedIn About','60 秒自我介绍','个人网站项目页'];
+
+/* ── Target：一个 JD / 一个机会 ──
+   requirement 的四种状态由 reqState() 算出来：
+     strong  已有证据（ev 里的 crumb），或 fills 里的事实已经挖到了
+     weak    只有沾边的证据（weak.text 说清差在哪）
+     none    还没有，但问得出来（fills 指明问出哪几条就能补上）
+     gap     你确实没有 —— 永远补不上，绝不为它生成文案
+   最后那一种是这一版最重要的东西：JD 是检查表，不是模板。 */
+const TARGETS = [
+  { id:'tg1', kind:'实习', title:'后端开发实习生', org:'某大厂 · 基础架构', when:'3 天前收藏', primary:true,
+    raw:'岗位职责：参与后端服务的设计与开发，负责推荐/搜索链路的性能优化与稳定性建设。\n任职要求：见下。',
+    reqs:[
+      { id:'r1',  kind:'hard', text:'熟悉 Python / Go，有后端服务开发经验', ev:['c3','c2'] },
+      { id:'r2',  kind:'hard', text:'有高并发系统的实践经验',
+        weak:{ text:'README 写了「日均 12w 请求」，但没有峰值 QPS、没有延迟数字', refs:['c4'] }, fills:['h3'] },
+      { id:'r3',  kind:'hard', text:'熟悉常见性能优化手段（缓存 / 索引 / 懒加载）', fills:['h4'] },
+      { id:'r4',  kind:'hard', text:'具备独立排查线上问题的能力',
+        weak:{ text:'笔记里记了一次 P99 事故，但只有现象、没有根因和结局', refs:['c5'] }, fills:['h5'] },
+      { id:'r5',  kind:'pref', text:'有推荐 / 搜索方向的项目经验', ev:['c4','c2'] },
+      { id:'r6',  kind:'pref', text:'有机器学习模型落地经验',
+        weak:{ text:'repo 里出现过 LightGBM，但看不出你怎么选型、效果如何', refs:['c3'] }, fills:['h6'] },
+      { id:'r7',  kind:'pref', text:'能用业务指标衡量自己的工作', fills:['h1','h2'] },
+      { id:'r8',  kind:'pref', text:'有带人 / code review 经验', fills:['h8'] },
+      { id:'r9',  kind:'pref', text:'良好的跨团队沟通与说服能力', fills:['h7','h10'] },
+      { id:'r10', kind:'implicit', text:'主动发现问题并推动解决', fills:['h9'] },
+      { id:'r11', kind:'implicit', text:'资源受限时能做成本权衡', fills:['h4','h6'] },
+      { id:'r12', kind:'hard', text:'2026 届本科及以上，计算机相关专业', ev:['c1'] },
+      { id:'r13', kind:'hard', text:'熟悉 Kubernetes / 容器化部署', gap:true },
+      { id:'r14', kind:'pref', text:'有消息队列（Kafka / Pulsar）使用经验', gap:true }
+    ]},
+  { id:'tg2', kind:'RA', title:'推荐系统方向 Research Assistant', org:'XX 实验室', when:'上周收藏',
+    raw:'招募方向：推荐系统的召回与排序；需要能独立做实验设计。',
+    reqs:[
+      { id:'q1', kind:'hard', text:'有推荐 / 信息检索方向的项目经验', ev:['c4','c2'] },
+      { id:'q2', kind:'hard', text:'熟悉召回 + 排序的经典架构', ev:['c4'] },
+      { id:'q3', kind:'hard', text:'能独立完成实验设计与对照分析', fills:['h6'] },
+      { id:'q4', kind:'pref', text:'有处理真实业务数据的经验',
+        weak:{ text:'README 有请求量，但没有真实业务侧的结果', refs:['c4'] }, fills:['h1','h2'] },
+      { id:'q5', kind:'pref', text:'能读英文论文并复现', gap:true },
+      { id:'q6', kind:'pref', text:'有稳定产出（论文 / 开源 / 技术博客）', gap:true },
+      { id:'q7', kind:'implicit', text:'能长期投入（≥ 6 个月）',
+        weak:{ text:'简历显示这个项目做了 7 个月，但没写你后来还在不在', refs:['c2'] } },
+      { id:'q8', kind:'implicit', text:'自驱，能自己找问题', fills:['h9'] }
+    ]},
+  { id:'tg3', kind:'合伙人', title:'技术合伙人 / 早期团队', org:'—', entryOnly:true,
+    raw:'', reqs:[] }
+];
+const REQ_KIND = { hard:'硬性', pref:'优先', implicit:'隐含' };
+
+/* 同频的人 —— placeholder。匹配只发生在标签层，不碰 crumbs 原文。 */
+const PEERS = [
+  { id:'p1', handle:'@lin_infra', line:'后端 / 存储 · 在做一个校内拼车的匹配服务',
+    overlap:['成本意识','根因','事故'],
+    theirs:'为了省钱没上 K8s，自己写了个 systemd + 健康检查的土方案，跑了半年没挂。',
+    mineHint:'你的「选分片 + mmap 懒加载而非扩容」和这条是同一种判断' },
+  { id:'p2', handle:'@zoe_ml', line:'ML · 正在写一篇关于小样本排序的本科毕设',
+    overlap:['实验','数字','取舍'],
+    theirs:'拿 1500 条标注跑了对照，发现复杂模型在小数据上根本打不过 GBDT。',
+    mineHint:'你第 3 轮那条「BERT +0.3pt / 6× 成本」几乎是同一个结论' },
+  { id:'p3', handle:'@harper_pm', line:'产品 · 在找会做推荐的技术伙伴',
+    overlap:['起因','主动性','业务指标'],
+    theirs:'我做的第一个功能也是因为自己是用户、自己被恶心到了才做的。',
+    mineHint:'你第 6 轮讲的「自己挂闲置两周没人问」是同一类起点' }
+];
+
+/* 可见性三层 —— placeholder，默认最严 */
+const VISIBILITY = [
+  { key:'private',   name:'材料原文', desc:'日记、笔记、私有 repo 的原文', state:'永不参与匹配', locked:true },
+  { key:'matchable', name:'标签签名', desc:'只有 #成本意识 这类标签，不含事实原文', state:'参与匹配', on:true },
+  { key:'public',    name:'事实原文', desc:'某一条事实的具体内容', state:'逐条手动放行 · 现在 0 条', on:false }
+];
 
 /* ── Dashboard 的历史数据 ──
    以「经历」为单位组织：一段经历下面挂着它的事实、轮次、产出物。
