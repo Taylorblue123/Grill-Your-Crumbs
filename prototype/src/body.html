@@ -1,0 +1,462 @@
+<body>
+<div class="stage">
+
+<!-- ══════════════ ⓪ 落地页（未登录） ══════════════ -->
+<section class="screen on" id="s-landing">
+  <div class="top">
+    <div class="brand"><span class="dot"></span>Grill Your Crumbs</div>
+    <nav class="topnav" style="display:flex;gap:2px;margin-left:6px">
+      <a class="navlink" href="#why">它凭什么不一样</a>
+      <a class="navlink" href="#how">5 分钟里发生什么</a>
+    </nav>
+    <div class="tr">
+      <button class="theme" onclick="toggleTheme()" title="切换深色 / 浅色" aria-label="切换主题"><span id="themeIc">◐</span></button>
+      <button class="btn ghost sm" onclick="autoTour()">看一遍完整演示 ▶</button>
+      <button class="btn sm" onclick="go('dash')">进入我的工作区</button>
+    </div>
+  </div>
+
+  <div class="scroll">
+    <div class="herowrap">
+      <div class="lwrap">
+        <div class="hero">
+          <div>
+            <span class="kick">RESUME · NETWORKING · 面试自我介绍</span>
+            <h1>你的经历写得干巴巴，<br>不是因为你写得差——<br>是<em>没人问过你正确的问题</em>。</h1>
+            <p class="lede">把简历、GitHub、笔记、日记、社交动态全丢进来。我先读一遍，然后<b>只问那些你不说就没人知道</b>的问题。你答一句，右边那份稿子就长一块——<b>每一句都能点开看出处</b>。</p>
+            <div class="hcta">
+              <button class="btn" onclick="go('dash')">进入我的工作区 →</button>
+              <button class="btn ghost" onclick="autoTour()">先看一遍完整演示</button>
+            </div>
+            <p class="hnote">约 5 分钟 · 5～6 个问题 · 全程可撤回 · 无需注册　<code>demo 数据为虚构样例</code></p>
+          </div>
+          <div class="spec" id="specCard">
+            <div class="st">AFTER · 6 轮拷问之后 <span class="pill">悬停任意高亮 → 看出处</span></div>
+            <div class="body" id="specBody"></div>
+            <div class="foot">
+              <span><i style="background:var(--blue)"></i>来自你已有的材料</span>
+              <span><i style="background:var(--gold)"></i>刚从你嘴里挖出来的</span>
+              <span><i style="border:1.5px dashed var(--red)"></i>AI 补的，请你确认</span>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div class="band" id="why">
+      <div class="lwrap">
+        <h2>「这不就是 ChatGPT 帮你改简历吗？」</h2>
+        <p class="sub">不是。差别就三条，而且每一条都长在界面上，不在话术里。</p>
+        <div class="cards3">
+          <div class="c3">
+            <div class="n">01 · 它先说出它不知道什么</div>
+            <h3>每个问题都带一句「我为什么问这个」，理由必须指向具体的某一条材料。</h3>
+            <p>它不会问「能再多讲讲吗」。它会告诉你：这件事在你的 8 份材料里出现过几次、缺的是哪一块。</p>
+            <div class="ex">「你的 X 动态里已经写了 CTR 1.8%→3.1%，<b>所以这段我不问</b>。我不确定的是：这个提升换算成业务是什么——<b>八份材料里没有一份提到过</b>。」</div>
+          </div>
+          <div class="c3">
+            <div class="n">02 · 每一句话都指得出出处</div>
+            <h3>三色标注贯穿全稿：蓝色来自材料，金色来自你刚说的原话，红色是 AI 补的。</h3>
+            <p>金色片段硬绑到「第几轮、你的哪句原话」。指不出来源的句子会自动降级成红色并要求你确认——模型没法自说自话。</p>
+            <div class="ex">成稿最后一条是句无出处的套话，我们<b>故意没有藏起来</b>：它标红、挂着「无出处」角标、旁边就是【删掉这条】。</div>
+          </div>
+          <div class="c3">
+            <div class="n">03 · 挖到的东西留得下来</div>
+            <h3>每条新事实是可数、带标签、可撤回的独立条目，攒进你自己的事实库。</h3>
+            <p>我们不给「完成度 78%」这种没人能验证的数字——没人能确定性地知道你「讲完」了没有。我们只给<b>能数清的东西</b>，而且这些条目下次写别的简历还能接着用。</p>
+            <div class="ex">这也是为什么会有一个 <b>Dashboard</b>：Thread、简历版本、事实库都在那儿沉淀，而不是聊完就没了。</div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div class="band" id="how">
+      <div class="lwrap">
+        <h2>接下来这 5 分钟会发生什么</h2>
+        <p class="sub">先把预期讲清楚，再开始。你随时知道自己在第几步、还剩几步。</p>
+        <div class="flow">
+          <div class="fs"><span class="t">40 秒</span><div class="i">①</div><h4>投喂</h4>
+            <p>粘一段你写得最烂的经历，勾上要用的 crumbs，选一个目标（投简历 / LinkedIn / 面试自我介绍）。</p></div>
+          <div class="fs"><span class="t">3 分钟</span><div class="i">②</div><h4>拷问</h4>
+            <p>一次一问，每题先给你一个猜测答案——点头就行，不用从头写。不想答可以跳过，问得烂可以骂它。</p></div>
+          <div class="fs"><span class="t">同步发生</span><div class="i">③</div><h4>活稿在右边长</h4>
+            <p>不用等到最后。你每答一题，右边稿子里对应的灰色骨架就当场变成金色，左边账本多出几条。</p></div>
+          <div class="fs"><span class="t">30 秒</span><div class="i">④</div><h4>成果，然后回工作区</h4>
+            <p>原文和成稿并排。导出之后，这场 Thread、这份简历、这些事实都会落进你的 Dashboard。</p></div>
+        </div>
+        <div class="promise">
+          <span class="pm"><em>✓</em> 你的原文一个字都不会被改，它是最后的对比基准</span>
+          <span class="pm"><em>✓</em> 任何一轮都能撤回，稿子跟着回退</span>
+          <span class="pm"><em>✓</em> 问得烂就点「这问题没意义」，它会承认并换一个</span>
+          <span class="pm"><em>✓</em> 结束时你拿到：简历 bullet ＋ 60 秒自我介绍 ＋ 一条可分享的 Thread</span>
+        </div>
+      </div>
+    </div>
+
+    <div class="endcta">
+      <div class="lwrap">
+        <h2>把那 73 个字，换成一份指得出出处的稿子。</h2>
+        <p>不用注册，数据留在本地。演示用的是一份虚构样例。</p>
+        <div class="row" style="display:flex;gap:12px;justify-content:center;margin-top:24px;padding:0;border:0">
+          <button class="btn" onclick="go('dash')">进入我的工作区 →</button>
+          <button class="btn ghost" onclick="autoTour()">看一遍完整演示</button>
+        </div>
+      </div>
+      <p class="lfoot">Grill Your Crumbs · 单文件交互原型 · 假数据、无后端</p>
+    </div>
+  </div>
+</section>
+
+<!-- ══════════════ ① Dashboard · 以「经历」为单位 ══════════════ -->
+<section class="screen" id="s-dash">
+  <div class="top">
+    <div class="brand"><span class="dot"></span>Grill Your Crumbs</div>
+    <nav class="topnav" style="display:flex;gap:2px;margin-left:6px">
+      <button class="navlink on">工作区</button>
+      <button class="navlink" onclick="go('landing')">首页</button>
+    </nav>
+    <div class="tr">
+      <button class="theme" onclick="toggleTheme()" aria-label="切换主题"><span>◐</span></button>
+      <button class="gbtn" id="tourBtn0" onclick="autoTour()">自动演示 ▶</button>
+      <button class="gbtn pri" onclick="go('setup')">＋ 开一场新的 Grill</button>
+    </div>
+  </div>
+  <div class="scroll">
+    <div class="dash">
+      <div class="dhead">
+        <div>
+          <h1>Chen 的工作区</h1>
+          <p>按<b>经历</b>组织，不按我们的数据结构组织。<br>
+             每张卡是你能拿去讲的一段事——它现在有多厚、喂了哪几份稿子、还缺哪几个维度。</p>
+        </div>
+      </div>
+
+      <!-- 待办不是分类，是动作 -->
+      <div class="inbox" id="inbox"></div>
+
+      <div class="shelfhead">
+        <h2>我的经历</h2><span class="c num" id="expCnt">3</span>
+        <p>下面那 6 个格子是<b>维度矩阵</b>：填了几格是数出来的，不是完成度。<br>空格＝这段还没被问到那个角度。</p>
+      </div>
+      <div class="expgrid" id="expGrid"></div>
+
+      <div class="shelfhead">
+        <h2>产出物</h2><span class="c num" id="artCnt2">4</span>
+        <p>每份稿子由哪几段经历喂出来 · 三色条＝这份稿子有多少是有出处的</p>
+      </div>
+      <div class="strip" id="artStrip"></div>
+
+      <div class="shelfhead">
+        <h2>材料</h2><span class="c num">12</span>
+        <p>原料层。同一条材料可以喂给多段经历。</p>
+      </div>
+      <div class="srcgrid" id="srcGrid"></div>
+    </div>
+  </div>
+</section>
+
+<!-- ══════════════ ② 投喂（两种方式） ══════════════ -->
+<section class="screen" id="s-setup">
+  <div class="top">
+    <div class="brand"><span class="dot"></span>Grill Your Crumbs</div>
+    <nav class="stepper" id="stepper1"></nav>
+    <div class="tr">
+      <button class="theme" onclick="toggleTheme()" aria-label="切换主题"><span>◐</span></button>
+      <button class="gbtn" onclick="go('dash')">← 回工作区</button>
+      <button class="gbtn" id="tourBtn1" onclick="autoTour()">自动演示 ▶</button>
+    </div>
+  </div>
+  <div class="scroll">
+    <div class="setup">
+      <div class="kick2">第 ① 步 · 投喂</div>
+      <h1>这一场，我们从<em>哪儿</em>开始？</h1>
+      <p class="lede">两条路都行。你心里已经有那段想改的经历，就自己写；<b>没想好写哪段，就让我从你的材料里挑</b>。</p>
+
+      <div class="ways">
+        <button class="way on" id="wayA" onclick="setWay('write')">
+          <span class="wt"><span class="i">A</span>我有一段想改的经历</span>
+          <p>粘一段你自己写的（通常很干巴），它会成为最后对比用的基准。适合已经有简历、想改某一条的人。</p>
+        </button>
+        <button class="way" id="wayB" onclick="setWay('pick')">
+          <span class="wt"><span class="i">B</span>从我的材料里挑一段</span>
+          <p><b>一个字都不用写。</b>我先把你的 crumbs 聚成几段能讲的经历，告诉你每段有多厚、缺口在哪，你挑一个就开始。</p>
+        </button>
+      </div>
+
+      <!-- ── 方式 A ── -->
+      <div class="wayBody on" id="bodyWrite">
+        <div class="blk">
+          <div class="blab">这段经历 <i>必填</i></div>
+          <textarea class="ta" id="ta" aria-label="你的原始经历"></textarea>
+          <div class="hint">↑ 这段是<b>基准</b>：一个字都不会被改动，最后要和成稿并排对比。<span id="taCount" class="num"></span></div>
+        </div>
+      </div>
+
+      <!-- ── 方式 B ── -->
+      <div class="wayBody" id="bodyPick">
+        <div class="blk">
+          <div class="blab">我从 12 条材料里聚出了这几段 <i>点一个开始</i></div>
+          <div class="expopts" id="expOpts"></div>
+          <div class="picked" id="pickedBox"></div>
+        </div>
+      </div>
+
+      <div class="blk">
+        <div class="blab">你要拿它去做什么 <i>FOR X</i></div>
+        <div class="chips" id="forx"></div>
+      </div>
+
+      <div class="blk">
+        <div class="blab">本场装载的 Crumbs <i>进了工作台还能随时增减</i></div>
+        <div class="crumbgrid" id="crumbgrid"></div>
+        <div class="hint" id="crumbHint"></div>
+      </div>
+
+      <div class="expect">
+        <div class="eh">接下来会发生什么 <em>约 5 分钟 · 6 轮 · 随时可退出</em></div>
+        <div class="esteps">
+          <div class="es"><div class="i">①</div><h5>投喂</h5><p>你现在在这里。</p></div>
+          <div class="es"><div class="i">②</div><h5>一次一问</h5><p>6 轮，每题带「我为什么问这个」和一个猜测答案。</p></div>
+          <div class="es"><div class="i">③</div><h5>四个面板同步长</h5><p>材料 · 拷问 · 简历活稿 · 收获账本。每个都能收到边上或放大。</p></div>
+          <div class="es"><div class="i">④</div><h5>成果 → 回工作区</h5><p>这段经历会变厚一截，产出物挂在它下面。</p></div>
+        </div>
+        <div class="ep">
+          <ul>
+            <li><i>✓</i><span>每题都先给<b>猜测答案</b>——点头就行，不用从头打字。</span></li>
+            <li><i>✓</i><span>任何一轮、任何一条新事实都能<b>撤回</b>，简历稿会跟着回退（<b>⌘Z / Ctrl+Z</b>）。</span></li>
+            <li><i>✓</i><span>问得烂就点<b>「这问题没意义」</b>——它会承认，并换一个只有你能答的。</span></li>
+            <li><i>✓</i><span>我们不会给你「完成度 78%」这种数字。<b>没人能确定你讲完了没有</b>，所以我们只报能数清的：多挖到了几条、进稿几句。</span></li>
+          </ul>
+        </div>
+      </div>
+
+      <div class="gostrip">
+        <button class="go" id="startBtn" onclick="go('wb')">开始拷问 →</button>
+        <small>预计 6 轮 · 中途随时可以点「够了，出稿」<br>不满意可以回到这里换一段，已挖到的内容不会丢</small>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ══════════════ ③ 工作台 · 四面板 ══════════════ -->
+<section class="screen" id="s-wb">
+  <div class="top">
+    <div class="brand"><span class="dot"></span>Grill Your Crumbs</div>
+    <nav class="stepper" id="stepper2"></nav>
+    <div class="goal">Grill for <b id="goalTxt">投一份实习／校招简历</b></div>
+    <div class="tr">
+      <button class="theme" onclick="toggleTheme()" aria-label="切换主题"><span>◐</span></button>
+      <button class="gbtn" id="undoBtn" onclick="undo()" disabled>撤回上一步<kbd>⌘Z</kbd></button>
+      <button class="gbtn" id="tourBtn2" onclick="autoTour()">自动演示 ▶</button>
+      <button class="gbtn pri" onclick="go('done')">够了，出稿 →</button>
+    </div>
+  </div>
+
+  <div class="wb">
+    <!-- 面板控制条 -->
+    <div class="panelbar" id="panelbar">
+      <span class="pbLabel">面板</span>
+      <button class="pchip" id="chip-crumbs" onclick="cyclePanel('crumbs')"><span class="sq"></span>材料<span class="k">1</span></button>
+      <button class="pchip" id="chip-grill"  onclick="cyclePanel('grill')"><span class="sq"></span>拷问<span class="k">2</span></button>
+      <button class="pchip" id="chip-draft"  onclick="cyclePanel('draft')"><span class="sq"></span>简历活稿<span class="k">3</span></button>
+      <button class="pchip" id="chip-ledger" onclick="cyclePanel('ledger')"><span class="sq"></span>收获账本<span class="k">4</span></button>
+      <div class="pbRight">
+        <span class="pbLabel" style="letter-spacing:.3px;font-weight:500;text-transform:none">点一下收起 · 再点展开 · ⤢ 放大</span>
+        <button class="gbtn" style="padding:3px 10px;font-size:11.5px" onclick="resetLayout()">重置布局</button>
+      </div>
+    </div>
+
+    <div class="panelsWrap">
+      <button class="barToggle" id="barToggle" onclick="toggleBar()">▲ 收起面板条</button>
+      <div class="panels" id="panels">
+
+        <!-- ① 材料 -->
+        <section class="panel tone" id="p-crumbs">
+          <button class="panel-min" onclick="cyclePanel('crumbs')" title="展开材料面板">
+            <span class="ic0">◫</span><span class="lbl">材料</span><span class="n0 num" id="minCrumbs">8</span>
+          </button>
+          <div class="panel-h">
+            <h3>CRUMBS · 原料</h3><span class="pc num" id="pcCrumbs">8</span>
+            <span class="pa">
+              <button class="picon" onclick="maxPanel('crumbs')" title="放大">⤢</button>
+              <button class="picon" onclick="cyclePanel('crumbs')" title="收起">‹</button>
+            </span>
+          </div>
+          <div class="panel-b" id="crumbsBody"></div>
+          <div class="panel-f"><small>拖动卡片可以在「本场使用中」和「材料库」之间搬</small></div>
+        </section>
+
+        <!-- ② 拷问 -->
+        <section class="panel" id="p-grill">
+          <button class="panel-min" onclick="cyclePanel('grill')" title="展开拷问面板">
+            <span class="ic0">◈</span><span class="lbl">拷问</span><span class="n0 num" id="minGrill">0</span>
+          </button>
+          <div class="panel-h">
+            <h3>GRILL · 一次一问</h3><span class="pc num" id="rounds">0 / 6</span>
+            <span class="pa">
+              <button class="picon" onclick="maxPanel('grill')" title="放大">⤢</button>
+              <button class="picon" onclick="cyclePanel('grill')" title="收起">‹</button>
+            </span>
+          </div>
+          <div class="panel-b mid-b" id="grill"></div>
+          <div class="composer">
+            <div class="cp-tip" id="cpTip"><span class="d"></span><span id="cpTipTxt">想自己说？直接在这里写。</span></div>
+            <div class="cp-box" id="cpBox">
+              <div class="cp-in" id="cpIn" contenteditable="true" role="textbox" aria-label="补充你的回答" data-ph="补充你的回答…"></div>
+              <button class="cp-send" id="cpSend" onclick="send()">发送 <kbd>↵</kbd></button>
+            </div>
+          </div>
+        </section>
+
+        <!-- ③ 简历活稿 -->
+        <section class="panel" id="p-draft">
+          <button class="panel-min" onclick="cyclePanel('draft')" title="展开简历面板">
+            <span class="ic0">▤</span><span class="lbl">简历活稿</span><span class="n0 num" id="minDraft">0</span>
+          </button>
+          <div class="panel-h">
+            <h3>DYNAMIC RESUME · 活稿</h3>
+            <span class="pc hot num" id="pcDraft">0</span>
+            <span class="pa">
+              <button class="picon" onclick="maxPanel('draft')" title="放大">⤢</button>
+              <button class="picon" onclick="cyclePanel('draft')" title="收起">‹</button>
+            </span>
+          </div>
+          <div class="out-h">
+            <div class="cbar"><i class="s" id="cS" style="width:39%"></i><i class="g" id="cG" style="width:0%"></i><i class="f" id="cF" style="width:50%"></i></div>
+            <div class="clegend">
+              <button class="cl" onclick="flash('source')"><i class="sw s"></i>有材料出处 <b id="nS" class="num">7</b></button>
+              <button class="cl hot" onclick="flash('grill')"><i class="sw g"></i>刚挖出来的 <b id="nG" class="num">0</b></button>
+              <button class="cl" onclick="flash('ghost')"><i class="sw f"></i>还没挖到 <b id="nF" class="num">9</b></button>
+              <button class="cl" onclick="flash('inferred')"><i class="sw i"></i>无出处 <b id="nI" class="num">2</b></button>
+              <span class="denom" id="denom" tabindex="0">共 18 个片段 ⓘ</span>
+            </div>
+            <div class="bump" id="bump"></div>
+          </div>
+          <div class="panel-b out-b" id="outBody">
+            <div class="view on" id="viewA">
+              <div class="sheet">
+                <h4>RESUME · EXPERIENCE</h4>
+                <div id="bullets"></div>
+                <div class="dz" id="dropzone">⤓　把候补事实拖到这里，它就变成简历里的一条 bullet（可撤回）</div>
+                <h4>自我介绍 · 60 秒版</h4>
+                <div class="intro" id="intro"></div>
+              </div>
+            </div>
+          </div>
+          <div class="panel-f">
+            <button class="gbtn" style="padding:4px 11px;font-size:12px" onclick="ev('copy_artifact')">复制</button>
+            <button class="gbtn" style="padding:4px 11px;font-size:12px" onclick="ev('export_md')">导出</button>
+            <small>每答一题，这里就多一块金色</small>
+          </div>
+        </section>
+
+        <!-- ④ 收获账本（原「Thread 成果」已并入） -->
+        <section class="panel tone" id="p-ledger">
+          <button class="panel-min" onclick="cyclePanel('ledger')" title="展开收获账本">
+            <span class="ic0">◱</span><span class="lbl">收获账本</span><span class="n0 num" id="minLedger">0</span>
+          </button>
+          <div class="panel-h">
+            <h3>收获账本</h3><span class="pc hot num" id="pcLedger">0</span>
+            <span class="pa">
+              <div class="lgKey" style="margin-right:4px">
+                <button class="on" id="lkDim" onclick="setLedgerKey('dim')">按维度</button>
+                <button id="lkTag" onclick="setLedgerKey('tag')">按标签</button>
+              </div>
+              <button class="picon" onclick="maxPanel('ledger')" title="放大">⤢</button>
+              <button class="picon" onclick="cyclePanel('ledger')" title="收起">‹</button>
+            </span>
+          </div>
+          <div class="panel-b">
+            <div class="ledger" id="ledger"></div>
+          </div>
+          <div class="panel-f"><small>每条只标它来自第几轮 —— 问题本身在左边拷问栏，不重复一遍</small></div>
+        </section>
+
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ══════════════ ④ 成果 ══════════════ -->
+<section class="screen" id="s-done">
+  <div class="top">
+    <div class="brand"><span class="dot"></span>Grill Your Crumbs</div>
+    <nav class="stepper" id="stepper3"></nav>
+    <div class="tr">
+      <button class="theme" onclick="toggleTheme()" aria-label="切换主题"><span>◐</span></button>
+      <button class="gbtn" onclick="go('wb')">← 回工作台继续问</button>
+      <button class="gbtn" onclick="ev('export_md')">导出 Markdown</button>
+      <button class="gbtn pri" onclick="finishToDash()">完成，存进工作区 →</button>
+    </div>
+  </div>
+  <div class="rv">
+    <div class="rv-h">
+      <h2>同一段经历，<em id="rvN">9 处</em>是刚刚从你嘴里挖出来的——<br>你原来那 73 个字里，一个都没有。</h2>
+      <div class="legend">
+        <span class="lg2"><i class="sw s"></i>来自你已有的材料 <b id="rS" class="num">7</b></span>
+        <span class="lg2 gold"><i class="sw g"></i>刚刚从你嘴里挖出来的 <b id="rG" class="num">9</b></span>
+        <span class="lg2"><i class="sw i"></i>AI 补的，请你确认 <b id="rI" class="num">2</b></span>
+        <span class="lg2" style="border-style:dashed">悬停任意高亮 → 看它的出处</span>
+      </div>
+    </div>
+    <div class="rv-b">
+      <div class="panes">
+        <div class="pn before">
+          <div class="pn-t"><span>BEFORE</span>你自己写的那一版</div>
+          <div class="old" id="oldText"></div>
+          <div class="old-note">73 个字，零个数字，零个决策，零个困难。<br>
+            这不是你写得差——是<b>没人问过你正确的问题</b>。</div>
+          <div class="bstat">
+            <div class="bs"><b id="bsG" class="num">10</b><span>挖到的新事实（条）</span></div>
+            <div class="bs"><b id="bsR" class="num">5</b><span>你回答过的轮次</span></div>
+            <div class="bs"><b id="bsX" class="num">1</b><span>被你判为「没意义」</span></div>
+            <div class="bs"><b id="bsI" class="num">2</b><span>还没有出处，等你确认</span></div>
+          </div>
+        </div>
+        <div class="pn">
+          <div class="pn-t"><span class="aft">AFTER</span>6 轮拷问之后</div>
+          <div class="sheet">
+            <h4>RESUME · EXPERIENCE</h4>
+            <div id="bullets2"></div>
+            <h4>自我介绍 · 60 秒版</h4>
+            <div class="intro" id="intro2"></div>
+          </div>
+          <div class="exports">
+            <button class="gbtn pri" onclick="ev('copy_artifact')">复制全文</button>
+            <button class="gbtn" onclick="ev('export_md')">导出 Markdown</button>
+            <button class="gbtn" onclick="ev('save_thread')">存为我的 Thread</button>
+            <small>↑ 这三个按钮的点击率＝唯一的成功度量点</small>
+          </div>
+        </div>
+      </div>
+
+      <div class="harvestboard">
+        <div class="hb-h"><h3>这一场挖到了什么 · 按维度分组</h3>
+          <small id="hbSum">共 10 条新事实，来自 5 轮回答</small></div>
+        <div class="hb-b" id="hbBody"></div>
+      </div>
+
+      <!-- 明确的收尾动线：不要把人留在死胡同里 -->
+      <div class="landing-strip">
+        <div class="m">
+          <h4>这一场就到这儿。接下来去哪？</h4>
+          <p>这一场挖到的 <b id="lsN" class="num">10</b> 条事实会挂到<b>「校园二手交易平台 · 推荐系统」</b>这段经历下面，产出物也挂在它下面。<br>这段经历因此变厚了一截——下次写别的简历直接从它取料，不用把同样的问题再答一遍。</p>
+        </div>
+        <div class="a">
+          <button class="btn" onclick="finishToDash()">完成，存进工作区 →</button>
+          <button class="btn ghost" onclick="go('wb')">再问几轮</button>
+          <button class="btn ghost" onclick="go('setup')">换一段经历再来一场</button>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+</div>
+
+<div id="pop" role="tooltip"></div>
+<div class="toast" id="toast" role="status"></div>
+<div class="autobar" id="autobar">
+  <span class="t" id="autoTxt">自动演示 · <b>落地页</b></span>
+  <button onclick="stopTour()">停止并接管</button>
+</div>
