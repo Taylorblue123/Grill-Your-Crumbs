@@ -1,0 +1,107 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://grill-your-crumbs.local/schemas/next-question.json",
+  "title": "Grill for X next-question decision",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "action",
+    "budget_lane",
+    "dimension",
+    "target_requirement_id",
+    "question",
+    "why_asked",
+    "why_refs",
+    "evidence_gap",
+    "answer_aid",
+    "stop_reason"
+  ],
+  "properties": {
+    "action": {"type": "string", "enum": ["ask", "stop"]},
+    "budget_lane": {"type": ["string", "null"], "enum": ["target", "general", null]},
+    "dimension": {
+      "type": ["string", "null"],
+      "enum": [
+        "motivation",
+        "role_scope",
+        "key_decision",
+        "quantified_result",
+        "real_difficulty",
+        "judgment_collaboration",
+        null
+      ]
+    },
+    "target_requirement_id": {"type": ["string", "null"], "minLength": 1},
+    "question": {"type": ["string", "null"], "minLength": 1, "maxLength": 240},
+    "why_asked": {"type": ["string", "null"], "minLength": 1, "maxLength": 400},
+    "why_refs": {
+      "type": "array",
+      "items": {"type": "string", "minLength": 1},
+      "uniqueItems": true,
+      "maxItems": 8
+    },
+    "evidence_gap": {
+      "type": ["object", "null"],
+      "additionalProperties": false,
+      "required": ["known_from_refs", "missing_fact", "cannot_infer_because", "expected_use"],
+      "properties": {
+        "known_from_refs": {"type": "string", "minLength": 1, "maxLength": 500},
+        "missing_fact": {"type": "string", "minLength": 1, "maxLength": 300},
+        "cannot_infer_because": {"type": "string", "minLength": 1, "maxLength": 400},
+        "expected_use": {"type": "string", "minLength": 1, "maxLength": 400}
+      }
+    },
+    "answer_aid": {
+      "type": ["object", "null"],
+      "additionalProperties": false,
+      "required": ["kind", "text", "refs", "provisional"],
+      "properties": {
+        "kind": {"type": "string", "enum": ["scaffold", "provisional_hypothesis"]},
+        "text": {"type": "string", "minLength": 1, "maxLength": 400},
+        "refs": {
+          "type": "array",
+          "items": {"type": "string", "minLength": 1},
+          "uniqueItems": true,
+          "maxItems": 8
+        },
+        "provisional": {"type": "boolean"}
+      }
+    },
+    "stop_reason": {"type": ["string", "null"], "minLength": 1, "maxLength": 400}
+  },
+  "allOf": [
+    {
+      "if": {"properties": {"action": {"const": "ask"}}},
+      "then": {
+        "properties": {
+          "budget_lane": {"type": "string", "enum": ["target", "general"]},
+          "dimension": {"type": "string"},
+          "question": {"type": "string"},
+          "why_asked": {"type": "string"},
+          "why_refs": {"minItems": 1},
+          "evidence_gap": {"type": "object"},
+          "answer_aid": {"type": "object"},
+          "stop_reason": {"type": "null"}
+        }
+      },
+      "else": {
+        "properties": {
+          "budget_lane": {"type": "null"},
+          "dimension": {"type": "null"},
+          "target_requirement_id": {"type": "null"},
+          "question": {"type": "null"},
+          "why_asked": {"type": "null"},
+          "why_refs": {"maxItems": 0},
+          "evidence_gap": {"type": "null"},
+          "answer_aid": {"type": "null"},
+          "stop_reason": {"type": "string"}
+        }
+      }
+    },
+    {
+      "if": {"properties": {"budget_lane": {"const": "target"}}},
+      "then": {"properties": {"target_requirement_id": {"type": "string"}}},
+      "else": {"properties": {"target_requirement_id": {"type": "null"}}}
+    }
+  ]
+}

@@ -1,0 +1,56 @@
+{
+  "token_count": 211,
+  "estimated_cost": null,
+  "model": "default",
+  "clarity_score": 83,
+  "structure_score": 80,
+  "issues": [
+    {
+      "type": "redundancy",
+      "line": 11,
+      "text": "segment must cite",
+      "message": "Phrase repeated from line 11",
+      "context": "- Never invent provenance. A source segment must cite a supplied chunk id and cl"
+    },
+    {
+      "type": "redundancy",
+      "line": 11,
+      "text": "must cite a",
+      "message": "Phrase repeated from line 11",
+      "context": "- Never invent provenance. A source segment must cite a supplied chunk id and cl"
+    },
+    {
+      "type": "redundancy",
+      "line": 11,
+      "text": "id and closely",
+      "message": "Phrase repeated from line 11",
+      "context": "- Never invent provenance. A source segment must cite a supplied chunk id and cl"
+    },
+    {
+      "type": "redundancy",
+      "line": 11,
+      "text": "and closely match",
+      "message": "Phrase repeated from line 11",
+      "context": "- Never invent provenance. A source segment must cite a supplied chunk id and cl"
+    }
+  ],
+  "suggestions": [
+    "Consider adding 2-3 few-shot examples for consistent outputs",
+    "Consider adding role context: \"You are an expert...\""
+  ],
+  "sections": [
+    {
+      "name": "Introduction",
+      "lines": "1-3"
+    },
+    {
+      "name": "Rules",
+      "lines": "4-13"
+    }
+  ],
+  "has_examples": false,
+  "example_count": 0,
+  "has_output_format": true,
+  "word_count": 138,
+  "line_count": 13
+}

@@ -1,0 +1,72 @@
+{
+  "token_count": 1009,
+  "estimated_cost": null,
+  "model": "default",
+  "clarity_score": 83,
+  "structure_score": 90,
+  "issues": [
+    {
+      "type": "redundancy",
+      "line": 26,
+      "text": "questions have a",
+      "message": "Phrase repeated from line 26",
+      "context": "4. Target questions have a maximum budget of four; general-value questions have "
+    },
+    {
+      "type": "redundancy",
+      "line": 26,
+      "text": "have a maximum",
+      "message": "Phrase repeated from line 26",
+      "context": "4. Target questions have a maximum budget of four; general-value questions have "
+    },
+    {
+      "type": "redundancy",
+      "line": 26,
+      "text": "a maximum budget",
+      "message": "Phrase repeated from line 26",
+      "context": "4. Target questions have a maximum budget of four; general-value questions have "
+    },
+    {
+      "type": "redundancy",
+      "line": 26,
+      "text": "maximum budget of",
+      "message": "Phrase repeated from line 26",
+      "context": "4. Target questions have a maximum budget of four; general-value questions have "
+    }
+  ],
+  "suggestions": [
+    "Consider adding 2-3 few-shot examples for consistent outputs",
+    "Consider adding role context: \"You are an expert...\""
+  ],
+  "sections": [
+    {
+      "name": "Identity",
+      "lines": "1-4"
+    },
+    {
+      "name": "Input contract",
+      "lines": "5-20"
+    },
+    {
+      "name": "Eligibility policy",
+      "lines": "21-27"
+    },
+    {
+      "name": "Ranked selection",
+      "lines": "28-39"
+    },
+    {
+      "name": "Question policy",
+      "lines": "40-48"
+    },
+    {
+      "name": "Output contract",
+      "lines": "49-56"
+    }
+  ],
+  "has_examples": false,
+  "example_count": 0,
+  "has_output_format": true,
+  "word_count": 576,
+  "line_count": 56
+}
