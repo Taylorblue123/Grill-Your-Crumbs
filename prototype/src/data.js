@@ -271,5 +271,41 @@ const PAST_ARTIFACTS = [
   { id:'a_04', title:'面试自我介绍 · 60 秒（草稿）', kind:'自我介绍', exps:['支付网关限流中间件（暑期实习）'],     when:'上周',  prov:[4,2,3] }
 ];
 
+
+/* ── 底稿来源：不再有「手打一段经历」这个选项 ──
+   用户输入的心力降级成工作台里某条 bullet 上的可选动作。 */
+const BASES = [
+  { id:'b1', label:'实习简历 v3', desc:'3 天前存在工作区里的那份 · 5 条 bullet' },
+  { id:'b2', label:'上传一份新的', desc:'上传后它会变成材料库里的一条 crumb，不另造输入通道' },
+  { id:'b3', label:'从零开始',     desc:'不用现成简历，只用 12 条 crumbs 起稿' }
+];
+
+/* 你现在这份简历长什么样 —— BEFORE 的新口径就是它，不是「你在框里打的一段话」 */
+const OLD_RESUME = [
+  { n:1, t:'XX大学 计算机科学与技术 · 2022–2026 · GPA 3.8/4.0', target:false },
+  { n:2, t:'校园二手交易平台 · 推荐系统 · 后端开发 · 2025.03–2025.09。负责推荐系统后端，做了大概半年，最后上线了，效果还可以。', target:true },
+  { n:3, t:'Backend Engineer Intern · 2025.07–2025.09', target:false }
+];
+
+/* ── 作战板：一份简历由好几段经历组成 ──
+   这就是「单位＝一份产出物」长出来的样子。hits 按不同 target 分别算。 */
+const PLAN = [
+  { id:'p1', title:'校园二手交易平台 · 推荐系统', span:'2025.03 – 2025.09',
+    hits:{ tg1:4, tg2:4 }, heat:'厚', rounds:6, max:6, on:true, scripted:true,
+    plan:'量化结果 / 关键决策 / 判断与协作 / 角色边界 / 动机',
+    base:'你简历<b>第 2 条</b>：“负责推荐系统后端，做了大概半年，最后上线了，效果还可以。” —— 零个数字、零个决策',
+    crumbs:['c2','c3','c4','c5','c6','c7'] },
+  { id:'p2', title:'支付网关限流中间件', span:'2024.06 – 2024.08',
+    hits:{ tg1:2, tg2:0 }, heat:'薄', rounds:2, max:4, on:true, scripted:false,
+    plan:'为什么选令牌桶 / 上线后的数字',
+    base:'你简历<b>第 3 条</b>：“Backend Engineer Intern” —— 只有一个头衔',
+    crumbs:['c8','c9','c10'] },
+  { id:'p3', title:'开源项目 README 重写', span:'2025.10',
+    hits:{ tg1:0, tg2:1 }, heat:'无', rounds:2, max:3, on:false, scripted:false,
+    plan:'这份简历里用不上',
+    base:'和这个 JD 的要求没有交集',
+    crumbs:['c12'] }
+];
+
 const CRUMB_BY_ID = Object.fromEntries(CRUMBS.map(c=>[c.id,c]));
 const TURN_BY_ID  = Object.fromEntries(TURNS.map(t=>[t.id,t]));

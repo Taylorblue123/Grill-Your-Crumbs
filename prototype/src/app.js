@@ -4,7 +4,8 @@
 
    状态：
      screenName   当前屏
-     intakeWay    'write' 自己写 / 'pick' 从材料里挑
+     baseId       底稿来自哪份现有简历（不再有「手打一段」这个选项）
+     planOn/planRounds  作战板：这一场组哪几段经历、每段挖几轮
      cursor       正在问第几题
      sessionCrumbs 本场装载了哪些材料（可拖进拖出）
      active       生效中的新事实 id  ← 撤回、计数、稿子长短全靠它
@@ -27,7 +28,14 @@ let cursor = 0, rounds = [], answering = false, typing = null;
 let active = new Set(), promoted = new Set(), killed = new Set();
 let sessionCrumbs = new Set(CRUMBS.filter(c=>!c.off).map(c=>c.id));
 let undoStack = [], sessionSaved = false;
-let intakeWay = 'write', pickedExp = 'e1', ledgerKey = 'dim';
+let ledgerKey = 'dim';
+let baseId = 'b1';
+/* 作战板状态 —— 它不是海报：planRounds.p1 直接决定工作台问几轮 */
+let planOn     = Object.fromEntries(PLAN.map(p=>[p.id, p.on]));
+let planRounds = Object.fromEntries(PLAN.map(p=>[p.id, p.rounds]));
+const P1 = PLAN[0].id;
+/* 这一场实际会问几轮 = 作战板上第一段的轮次（原型只有它有脚本） */
+const nTurns = () => Math.max(1, Math.min(TURNS.length, planRounds[P1]));
 let targetId = 'tg1', jdPasted = false;   // 本场的 Target（null = 不设目标）
 
 
@@ -301,9 +309,9 @@ function renderTarget(justIds){
               <span class="rt">${r.text}</span>
               <span class="kd ${r.kind}">${REQ_KIND[r.kind]}</span></div>
             ${st==='ok' && ev.length ? `<div class="ev2">↳ 第 ${TURN_BY_ID[HARVEST[ev[0]].turn].round} 轮挖到：${ev.map(h=>HARVEST[h].text).join(' ／ ')}</div>` : ''}
-            ${st==='ok' && !ev.length && r.ev ? `<div class="ev2">↳ ${r.ev.map(c=>`<span class="tg src">${SOURCE_ICON[CRUMB_BY_ID[c].type]} ${CRUMB_BY_ID[c].name}</span>`).join('')}</div>` : ''}
+            ${st==='ok' && !ev.length && r.ev ? `<div class="ev2">↳ ${r.ev.map(c=>`<span class="tg ref">${SOURCE_ICON[CRUMB_BY_ID[c].type]} ${CRUMB_BY_ID[c].name}</span>`).join('')}</div>` : ''}
             ${st==='weak' ? `<div class="ev2">↳ <b>差在哪：</b>${r.weak.text}
-                ${(r.weak.refs||[]).map(c=>`<span class="tg src">${CRUMB_BY_ID[c].name}</span>`).join('')}
+                ${(r.weak.refs||[]).map(c=>`<span class="tg ref">${CRUMB_BY_ID[c].name}</span>`).join('')}
                 ${r.fills?`<button class="ask" onclick="askFor('${r.id}')">去问这条 →</button>`:''}</div>` : ''}
             ${st==='none' ? `<div class="ev2">↳ 材料里 <b>0 条</b>证据，但这件事<b>问得出来</b>
                 <button class="ask" onclick="askFor('${r.id}')">去问这条 →</button></div>` : ''}
@@ -443,7 +451,7 @@ function counts(){
   $('#denom').textContent = `共 ${total} 个片段 ⓘ`;
   $('#pcDraft').textContent = gold;
   $('#minDraft').textContent = gold;
-  $('#rounds').textContent = `${Math.min(cursor,TURNS.length)} / ${TURNS.length}`;
+  $('#rounds').textContent = `${Math.min(cursor,nTurns())} / ${nTurns()}`;
   $('#minGrill').textContent = rounds.length;
   $('#undoBtn').disabled = !undoStack.length;
 }
@@ -460,7 +468,7 @@ function renderGrill(){
       <div class="pq">第 ${t.round} 轮 · ${t.question}</div><div class="pa">${esc(sub)}</div></div>`;
   }).join('');
 
-  if(cursor >= TURNS.length){
+  if(cursor >= nTurns()){
     g.appendChild(el('div','finish',
       `<h4>问完了。右边那份稿子，就是刚才这几轮的产物。</h4>
        <p>没有“揭晓”动作——因为你一路都看着它长出来。</p>
@@ -473,7 +481,7 @@ function renderGrill(){
 
   const t = TURNS[cursor], dead = t.status==='flagged_useless';
   g.appendChild(el('div','qcard',
-   `<div class="qc-h"><span class="dimtag">${t.dim}</span>第 ${t.round} 轮 · 共 ${TURNS.length} 轮
+   `<div class="qc-h"><span class="dimtag">${t.dim}</span>第 ${t.round} 轮 · 共 ${nTurns()} 轮
       <span style="margin-left:auto"><span class="qsrc ${t.src}">${
         t.src==='jd' && curTarget() ? 'JD 缺口驱动' : '通用维度'}</span></span></div>
     <div class="qc-b">
@@ -500,7 +508,7 @@ function renderGrill(){
     const used = rounds.map(r=>TURNS[r.ti].src);
     g.appendChild(el('div','budget',
       `<span>提问预算 <b>4 : 2</b>（JD 缺口 : 只有你有）</span>
-       <span class="bseg">${TURNS.map((tn,i)=>
+       <span class="bseg">${TURNS.slice(0,nTurns()).map((tn,i)=>
          `<i class="bs2 ${tn.src==='jd'?'jd':'gen'}${i>=cursor?' pend':''}" title="第 ${tn.round} 轮 · ${tn.src==='jd'?'JD 驱动':'通用维度'}"></i>`).join('')}</span>
        <span>已用 ${used.filter(x=>x==='jd').length} : ${used.filter(x=>x==='general').length}</span>`));
   }
@@ -538,20 +546,20 @@ function typeInto(text){
   });
 }
 async function startAnswer(){
-  if(cursor >= TURNS.length || answering) return;
+  if(cursor >= nTurns() || answering) return;
   openPanel('grill');
   tipHot('正在把你的回答打进输入框…（演示：真实产品里这里是你自己敲）');
   $('#cpIn').focus({preventScroll:true});
   await typeInto(TURNS[cursor].answer);
 }
 async function acceptGuess(){
-  if(cursor >= TURNS.length || answering) return;
+  if(cursor >= nTurns() || answering) return;
   tipHot('把它的猜测填进输入框——你可以直接发，也可以先改两个字。');
   await typeInto(TURNS[cursor].guess.replace(/[？?]$/,'，对。'));
   await sleep(520); send();
 }
 function send(){
-  if(cursor >= TURNS.length){ toast('已经问完了。可以去成果页，或者撤回某一轮再答一次。'); return; }
+  if(cursor >= nTurns()){ toast('已经问完了。可以去成果页，或者撤回某一轮再答一次。'); return; }
   if(answering) return;
   const text = $('#cpIn').textContent.trim();
   if(!text){ toast('先写点什么 —— 或者点上面的「就按你猜的算」，我会替你填。'); $('#cpIn').focus(); return; }
@@ -595,14 +603,14 @@ async function commit(text){
   cursor++; renderGrill();
 }
 function skip(){
-  if(cursor >= TURNS.length || answering) return;
+  if(cursor >= nTurns() || answering) return;
   undoStack.push({k:'round', ti:cursor, kind:'skipped', text:'', ids:[]});
   rounds.push({ti:cursor, kind:'skipped', text:''});
   cursor++; renderGrill();
   toast('跳过了。跳过不会丢——回头还能从「撤回上一步」倒回来。');
 }
 function flagBad(){
-  if(cursor >= TURNS.length || answering) return;
+  if(cursor >= nTurns() || answering) return;
   undoStack.push({k:'round', ti:cursor, kind:'flagged', text:'', ids:[]});
   rounds.push({ti:cursor, kind:'flagged', text:''});
   cursor++; renderGrill();
@@ -704,23 +712,27 @@ function renderReveal(){
   $('#lsN').textContent = active.size;
   $('#hbSum').textContent = `共 ${active.size} 条新事实，来自 ${ansRounds} 轮回答`;
   $('.rv-h h2').innerHTML = gold
-    ? `同一段经历，<em id="rvN">${gold} 处</em>是刚刚从你嘴里挖出来的——<br>你原来那${intakeWay==='pick'?'堆材料里':'  73 个字里'}，一个都没有。`
+    ? `同一段经历，<em id="rvN">${gold} 处</em>是刚刚从你嘴里挖出来的——<br>你现在这份简历里，一个都没有。`
     : `你一题都没答，所以成稿里只剩<em id="rvN">材料里本来就有的东西</em>。<br>回工作台答两题，这一栏就会变样。`;
 
-  // 方式 B 没有用户原文，BEFORE 换成「材料里只有这些」
-  if(intakeWay === 'pick'){
-    const e = EXPERIENCES.find(x=>x.id===pickedExp) || EXPERIENCES[0];
-    $('.pn.before .pn-t').innerHTML = '<span>BEFORE</span>你的材料里只有这些';
-    $('#oldText').innerHTML = e.crumbs.map(id=>{
+  /* BEFORE = 你现有简历里的那几条（或者「材料里本来有的」），不是为了用产品临时打的一段话 */
+  const fromZero = baseId === 'b3';
+  $('.pn.before .pn-t').innerHTML = fromZero
+    ? '<span>BEFORE</span>你的材料里只有这些'
+    : `<span>BEFORE</span>${baseId==='b2'?'你刚上传的那份简历':'你现在这份简历'}里的那几条`;
+  if(fromZero){
+    $('#oldText').innerHTML = PLAN[0].crumbs.map(id=>{
       const c = CRUMB_BY_ID[id];
       return `<div style="margin-bottom:8px;font-size:13px"><b style="color:var(--fg-mute);font-size:11px">${c.name}</b><br>${c.text}</div>`;
     }).join('');
-    $('.old-note').innerHTML = `${e.crumbs.length} 条材料，全是<b>事实碎片</b>：有代码、有事故、有一句吵架记录，<br>
-      但没有一条说清了<b>结局、取舍和你的角色</b>。<br>你一个字都没写，这一整段是问出来的。`;
+    $('.old-note').innerHTML = `${PLAN[0].crumbs.length} 条材料，全是<b>事实碎片</b>：有代码、有事故、有一句吵架记录，<br>
+      但没有一条说清了<b>结局、取舍和你的角色</b>。你一个字都没写，这一整段是问出来的。`;
   }else{
-    $('.pn.before .pn-t').innerHTML = '<span>BEFORE</span>你自己写的那一版';
-    $('#oldText').textContent = BASELINE;
-    $('.old-note').innerHTML = '73 个字，零个数字，零个决策，零个困难。<br>这不是你写得差——是<b>没人问过你正确的问题</b>。';
+    $('#oldText').innerHTML = OLD_RESUME.map(r=>
+      `<div style="margin-bottom:9px;font-size:13.5px;line-height:1.8;${r.target?'':'opacity:.5'}">
+        <b style="color:var(--fg-mute);font-size:11px">第 ${r.n} 条${r.target?' · 这一场要改的就是它':''}</b><br>${r.t}</div>`).join('');
+    $('.old-note').innerHTML = `这是<b>你现在简历上的原话</b>，一个字都没动过。<br>
+      第 2 条 26 个字，零个数字、零个决策、零个困难——<b>不是你写得差，是没人问过你正确的问题</b>。`;
   }
 
   const bulHTML = ARTIFACT.resume_bullets.map((b,i)=>{
@@ -745,7 +757,7 @@ function renderReveal(){
       ${items.length
         ? `<ul>${items.map(id=>{const h=HARVEST[id];return `<li><i>◆</i><span>${h.text}
             <span class="tagrow" style="margin-top:4px">${h.tags.map(x=>`<span class="tg">#${x}</span>`).join('')}
-            <span class="tg src">第 ${TURN_BY_ID[h.turn].round} 轮</span>
+            <span class="tg ref">第 ${TURN_BY_ID[h.turn].round} 轮</span>
             <span class="tg">→ ${promoted.has(id)?'简历（你加的）':h.dest}</span></span></span></li>`}).join('')}</ul>`
         : `<p class="none">这一维度这次没挖到——不是“完成度 0%”，是这场没问到。</p>`}
     </div>`;
@@ -764,7 +776,7 @@ function renderJDBoard(){
     <div class="jdb-b">
       <div class="jdcol"><h5>对上了<span class="b" style="background:var(--blue-bg);color:var(--blue-ink);border:1px solid var(--blue-bd)">${matched.length}</span></h5>
         <ul>${matched.map(r=>`<li><i style="color:var(--blue)">✓</i><span>${r.text}
-          ${(r.fills||[]).some(h=>active.has(h))?`<span class="tg dim">第 ${TURN_BY_ID[HARVEST[r.fills.find(h=>active.has(h))].turn].round} 轮挖到的</span>`:'<span class="tg src">材料里本来就有</span>'}</span></li>`).join('')}</ul></div>
+          ${(r.fills||[]).some(h=>active.has(h))?`<span class="tg dim">第 ${TURN_BY_ID[HARVEST[r.fills.find(h=>active.has(h))].turn].round} 轮挖到的</span>`:'<span class="tg ref">材料里本来就有</span>'}</span></li>`).join('')}</ul></div>
       <div class="jdcol"><h5>还没补上<span class="b" style="background:var(--sunk2);color:var(--fg-mute)">${left.length}</span></h5>
         ${left.length?`<ul>${left.map(r=>`<li><i>○</i><span>${r.text}<span class="tg">问得出来 · 回工作台</span></span></li>`).join('')}</ul>`
           :'<p class="hcol none" style="font-style:italic;color:var(--fg-mute);font-size:11.5px">能问出来的都问完了。</p>'}</div>
@@ -787,7 +799,7 @@ function liveExp(){
   [...active].forEach(id=>{ const d=HARVEST[id].dim; dims[d]=(dims[d]||0)+1; });
   return {
     id:'x1', now:true, title:'校园二手交易平台 · 推荐系统', span:'2025.03 – 2025.09',
-    crumbs:sessionCrumbs.size, rounds:`${rounds.length} / ${TURNS.length}`,
+    crumbs:sessionCrumbs.size, rounds:`${rounds.length} / ${nTurns()}`,
     when: sessionSaved ? '刚刚' : (rounds.length ? '进行中' : '还没开始'),
     state: sessionSaved ? 'done' : (rounds.length ? 'live' : 'new'), dims,
     arts: sessionSaved ? ['实习简历 · EXPERIENCE','60 秒自我介绍'] : [],
@@ -884,66 +896,6 @@ function renderDash(){
 }
 
 
-/* ═══════ 投喂页的 Target 选择 ═══════ */
-function setTarget(id){
-  jdPasted = false;
-  $('#jdPaste').style.display = id==='paste' ? 'block' : 'none';
-  applyTarget(id==='paste' ? null : id);
-  renderSetup();
-}
-function parseJD(){
-  const txt = $('#jdText').value.trim();
-  if(txt.length < 20){ toast('粘一段真的 JD 进来——职责和要求都要，我才拆得出条目。'); return; }
-  jdPasted = true; applyTarget('tg1');
-  renderSetup();
-  toast('拆成 14 条要求了。demo 里解析结果是预设的，真实产品里这一步是模型做的。');
-  setTimeout(()=>$('#tgSummary').scrollIntoView({block:'center',behavior:'smooth'}), 200);
-}
-function renderTargetPicker(){
-  const opts = TARGETS.filter(t=>!t.entryOnly).map(t=>{
-    const n = reqTally(t);
-    return `<button class="tgopt${targetId===t.id&&!$('#jdPaste')?'':''}${targetId===t.id?' on':''}" onclick="setTarget('${t.id}')">
-      <span class="tk">${t.kind} · 已收藏</span>
-      <h5>${t.title}</h5>
-      <p>${t.org} · ${t.reqs.length} 条要求<br>现在对上 <b>${n.ok}</b> · 还能问出 <b>${n.none+n.weak}</b> · 确实没有 <b>${n.gap}</b></p></button>`;
-  }).join('');
-  $('#tgOpts').innerHTML = opts
-    + `<button class="tgopt${$('#jdPaste')&&$('#jdPaste').style.display==='block'?' on':''}" onclick="setTarget('paste')">
-        <span class="tk">＋ 新的</span><h5>贴一段 JD</h5>
-        <p>把岗位描述整段粘进来，我拆成一条一条的要求。</p></button>`
-    + `<button class="tgopt${targetId===null&&$('#jdPaste').style.display!=='block'?' on':''}" onclick="setTarget(null)">
-        <span class="tk none">不设目标</span><h5>只做通用打磨</h5>
-        <p>不对任何岗位，就把这段经历本身讲清楚。提问全部走通用维度。</p></button>`;
-
-  const t = curTarget();
-  $('#tgSummary').innerHTML = !t
-    ? `<div class="hint">没设目标也能跑——提问会全部走通用维度，成果页不会有 JD 对齐那一栏。</div>`
-    : (()=>{ const n = reqTally(t);
-        return `<div class="picked" style="margin-top:14px">
-          <h5>${t.title} · ${t.org}　共 ${t.reqs.length} 条要求</h5>
-          <div style="display:flex;gap:6px;flex-wrap:wrap;margin-top:10px">
-            <span class="rstat ok"><i class="d"></i>已对上 <b>${n.ok}</b></span>
-            <span class="rstat weak"><i class="d"></i>只有弱证据 <b>${n.weak}</b></span>
-            <span class="rstat none"><i class="d"></i>还没有，但问得出来 <b>${n.none}</b></span>
-            <span class="rstat gap"><i class="d"></i>你确实没有 <b>${n.gap}</b></span>
-          </div>
-          <div class="reqlist" style="padding:12px 0 0">${
-            ['weak','none','gap'].map(st=>{
-              const list = t.reqs.filter(r=>reqState(r)===st).slice(0, st==='gap'?2:3);
-              if(!list.length) return '';
-              return list.map(r=>`<div class="req ${st}"><div class="rh">
-                <span class="mk">${REQ_MARK[st]}</span><span class="rt">${r.text}</span>
-                <span class="kd ${r.kind}">${REQ_KIND[r.kind]}</span></div>
-                ${st==='gap'?'<div class="ev2">↳ 这条问不出来，不会为它生成任何文案。</div>':
-                  '<div class="ev2">↳ 这条<b>只有你能补</b>，拷问时会优先问。</div>'}</div>`).join('');
-            }).join('')
-          }<p class="reqnote" style="padding-top:6px">…完整清单在工作台右边第五个面板里，随时能展开。</p></div>
-          <p class="note">提问预算 <b>4 : 2</b> —— 6 轮里 4 轮打 JD 缺口，2 轮打「只有你有」的东西。
-            只盯着 JD 会把你身上最独特的部分漏掉。</p>
-        </div>`; })();
-}
-
-
 /* ═══════ ①b 机会页 ═══════
    岗位和人是同一件事：拿我的事实去对外部的要求。
    所以这一页和工作区共用同一个事实库，只是换了个方向看。 */
@@ -1019,69 +971,114 @@ function bestExpFor(t){
 }
 /* 「去补缺口」＝ 开一场以这个目标为锚的拷问 —— 两块功能在这里合流 */
 function startFromTarget(id){
-  applyTarget(id); go('setup');
-  setTimeout(()=>toast(`目标换成「${curTarget().title}」了。下面的经历列表已经按「能对上几条」重排。`), 300);
+  applyTarget(id); renderSetup(); go('setup');
+  setTimeout(()=>toast(`目标换成「${curTarget().title}」了。作战板已经按新 JD 重算了每段能对上几条。`), 300);
 }
 function previewTarget(id){
   applyTarget(id); go('wb'); openPanel('target'); maxPanel('target');
 }
 
-/* ═══════ ② 投喂：两种方式 ═══════ */
-function setWay(w){
-  intakeWay = w;
-  $('#wayA').classList.toggle('on', w==='write');
-  $('#wayB').classList.toggle('on', w==='pick');
-  $('#bodyWrite').classList.toggle('on', w==='write');
-  $('#bodyPick').classList.toggle('on', w==='pick');
+/* ═══════ ② 作战板先行（原投喂页）═══════
+   一个问题都不问：三项配置塌缩成一句话里的三个下拉，系统直接把方案摆出来。
+   作战板不是海报 —— 第 ① 段的轮次直接决定工作台问几轮。 */
+const MENUS = {
+  target: () => TARGETS.filter(t=>!t.entryOnly).map(t=>({ id:t.id, label:t.title, desc:`${t.org} · ${t.reqs.length} 条要求` }))
+                 .concat([{ id:'__none', label:'先不设目标', desc:'只做通用打磨，提问全走通用维度' }]),
+  output: () => GOALS.map((g,i)=>({ id:'g'+i, label:g, desc:['针对这个 JD 的 EXPERIENCE 段落','第一人称，长一点，不用对着 JD','口语，面试开场用','放在个人网站上的项目页'][i] })),
+  base:   () => BASES.map(b=>({ id:b.id, label:b.label, desc:b.desc }))
+};
+let outputId = 'g0';
+const curOutput = () => GOALS[+outputId.slice(1)] || GOALS[0];
+const curBase   = () => BASES.find(b=>b.id===baseId) || BASES[0];
+const planTotal = () => PLAN.filter(p=>planOn[p.id]).reduce((a,p)=>a+planRounds[p.id], 0);
+
+function renderSetup(){
+  const t = curTarget();
+  $('#planKick').textContent = t ? `从「机会」页点了「${t.title} · 去补缺口」之后` : '从工作区点了「开一场新的 Grill」之后';
+  $('#sentence').innerHTML =
+    `为 <button class="slot" onclick="openSlot(event,'target')">${t ? t.title : '先不设目标'}<span class="car">▾</span></button>
+     组一份 <button class="slot" onclick="openSlot(event,'output')">${curOutput()}<span class="car">▾</span></button>，
+     底子用 <button class="slot" onclick="openSlot(event,'base')">${curBase().label}<span class="car">▾</span></button>。`;
+  $('#planBox').innerHTML = planHTML();
+}
+function openSlot(e, key){
+  e.stopPropagation();
+  const m = $('#smenu'), list = MENUS[key]();
+  const cur = key==='target' ? (targetId || '__none') : key==='output' ? outputId : baseId;
+  m.innerHTML = list.map(o=>`<button class="${cur===o.id?'on2':''}" onclick="pickSlot('${key}','${o.id}')">
+      ${o.label}<span class="d2">${o.desc}</span></button>`).join('');
+  m.classList.add('on');
+  const r = e.currentTarget.getBoundingClientRect();
+  m.style.left = Math.max(10, Math.min(r.left, innerWidth - m.offsetWidth - 16)) + 'px';
+  m.style.top  = (r.bottom + 6 > innerHeight - m.offsetHeight ? r.top - m.offsetHeight - 6 : r.bottom + 6) + 'px';
+  $$('.slot').forEach(x=>x.classList.remove('open'));
+  e.currentTarget.classList.add('open');
+}
+function pickSlot(key, id){
+  closeSlot();
+  if(key==='target'){ applyTarget(id==='__none' ? null : id); }
+  else if(key==='output'){ outputId = id; $('#goalTxt').textContent = curOutput(); }
+  else { baseId = id; }
   renderSetup();
 }
-function pickExp(id){ pickedExp = id; renderSetup(); }
-function expCovers(e){
-  const t = curTarget(); if(!t) return null;
-  // 这段经历能对上 JD 的哪几条：它自己的材料 + 它能问出来的事实
-  const own = new Set(e.crumbs);
-  return t.reqs.filter(r=>
-    (r.ev||[]).some(c=>own.has(c)) ||
-    (r.weak && (r.weak.refs||[]).some(c=>own.has(c))) ||
-    (e.id==='e1' && (r.fills||[]).length)
-  ).length;
+function closeSlot(){ $('#smenu')?.classList.remove('on'); $$('.slot').forEach(x=>x.classList.remove('open')); }
+document.addEventListener('click', closeSlot);
+
+function planHTML(){
+  const t = curTarget();
+  const on = PLAN.filter(p=>planOn[p.id]);
+  const gaps = t ? t.reqs.filter(r=>reqState(r)==='gap') : [];
+  const canStart = planOn[P1];
+  return `<div class="plan">
+    <div class="plan-h"><h3>${t ? `为「${t.title}」组这份${curOutput()}，我打算这样`
+                              : `这一场没设目标 · 通用打磨`}</h3>
+      <span class="sum">${t ? `共 <b class="num">${t.reqs.length}</b> 条要求 · 现在对上 <b class="num">${reqTally(t).ok}</b> · ` : ''}计划挖 <b class="num">${planTotal()}</b> 轮</span></div>
+    ${PLAN.map((p,i)=>{
+      const hit = t ? (p.hits[t.id] || 0) : null;
+      const yes = planOn[p.id];
+      return `<div class="pseg${yes?' on2':' off'}" data-p="${p.id}">
+        <span class="idx">${i+1}</span>
+        <span class="m">
+          <span class="t1">${p.title}<small>${p.span}</small>
+            ${hit!==null?`<span class="dots">${[0,1,2,3,4,5].map(k=>`<i class="${k<hit?'f':''}"></i>`).join('')}</span>
+            <span class="pheat ${p.heat}">${hit ? '对上 JD '+hit+' 条' : '对不上'}</span>`:''}</span>
+          <span class="p2">${yes ? `建议挖 <b>${planRounds[p.id]}</b> 轮：${p.plan}`
+                                 : `<span style="color:var(--fg-mute)">${p.plan}</span>`}</span>
+          <span class="base">底子：${p.base}</span>
+          <span class="froms"><span class="lb">聚自</span>${p.crumbs.map(c=>
+            `<span class="tg ref">${SOURCE_ICON[CRUMB_BY_ID[c].type]} ${CRUMB_BY_ID[c].name}</span>`).join('')}</span>
+        </span>
+        <span class="r2">
+          <button class="ptog${yes?' on3':''}" onclick="togglePlan('${p.id}')">${yes?'✓ 放进这份':'＋ 我还是想放'}</button>
+          ${yes?`<span class="pstep">
+            <button onclick="bumpPlan('${p.id}',-1)" ${planRounds[p.id]<=1?'disabled':''}>−</button>
+            <span class="v2">${planRounds[p.id]} 轮</span>
+            <button onclick="bumpPlan('${p.id}',1)" ${planRounds[p.id]>=p.max?'disabled':''}>＋</button></span>`:''}
+          ${p.scripted?'':'<span class="noscript">本原型无脚本</span>'}
+        </span>
+      </div>`;
+    }).join('')}
+    ${gaps.length?`<div class="gapbox2"><b>JD 里有 ${gaps.length} 条你确实没有</b>：${gaps.map(r=>r.text).join('、')}。<br>
+      <b>不会替你编。</b>这几条不会出现在成稿里，成果页会明说——那是去补技能的信号，不是去补文案的信号。</div>`:''}
+    <div class="plan-f">
+      <button class="go" onclick="startPlan()" ${canStart?'':'disabled style="opacity:.4;pointer-events:none"'}>
+        ${canStart?`就按这个开始 · 先跑第 ① 段的 ${planRounds[P1]} 轮`:'第 ① 段被关掉了，没得跑'}</button>
+      <button class="ghost" onclick="onlyFirst()">先只挖第 ① 段</button>
+      <small>${on.length} 段经历 · 第 ① 段这一场就问，其余留作下一场<br>
+        <b>你一个字都不用打</b> —— 底子来自简历和 12 条材料</small></div>
+  </div>`;
 }
-function renderSetup(){
-  renderTargetPicker();
-  const sorted = [...EXPERIENCES].sort((a,b)=>(expCovers(b)||0)-(expCovers(a)||0));
-  $('#expOpts').innerHTML = sorted.map(e=>{
-    const na = e.id !== 'e1';
-    return `<button class="eopt${pickedExp===e.id?' on':''}${na?' na':''}" onclick="pickExp('${e.id}')">
-      <span class="et">${e.title}<span class="span">${e.span}</span>
-        <span class="heat ${e.heat}">材料${e.heat}</span>
-        ${expCovers(e)!==null?`<span class="heat 中">能对上 JD ${expCovers(e)} 条</span>`:''}
-        ${e.recommend?'<span class="heat 厚">建议先挖这段</span>':''}</span>
-      <div class="why">${e.why}</div>
-      <div class="fromrow"><span class="lb">聚自</span>${e.crumbs.map(c=>
-        `<span class="tg src">${SOURCE_ICON[CRUMB_BY_ID[c].type]} ${CRUMB_BY_ID[c].name}</span>`).join('')}</div>
-      <span class="est">${na?'demo 未含这段脚本':e.est}</span></button>`;
-  }).join('');
-
-  const e = EXPERIENCES.find(x=>x.id===pickedExp);
-  const na = pickedExp !== 'e1';
-  $('#pickedBox').innerHTML = na
-    ? `<h5>已选：${e.title}</h5>
-       <p class="note">这个原型只跑通了第一段的拷问脚本（6 轮问答是手写的假数据）。
-         <b>换回「校园二手交易平台」才能开始</b>——真实产品里三段都能问。</p>`
-    : `<h5>已选：${e.title} · 这就是本场的基准</h5>
-       <div class="bl">${e.crumbs.map(id=>CRUMB_BY_ID[id].text).join(' ／ ')}</div>
-       <p class="note">注意：<b>这段基准是从你材料里拼的，不是你写的</b>。所以最后的对比不是「你写的 vs 成稿」，
-         而是「<b>材料里本来有的 vs 问出来之后的</b>」。成果页会照这个口径展示。</p>`;
-  $('#startBtn').disabled = intakeWay==='pick' && na;
-  $('#startBtn').style.opacity = $('#startBtn').disabled ? .45 : 1;
-  $('#startBtn').style.pointerEvents = $('#startBtn').disabled ? 'none' : 'auto';
-
-  $('#crumbgrid').innerHTML = CRUMBS.filter(c=>sessionCrumbs.has(c.id)).map(c=>
-    `<div class="cr"><span class="ic">${SOURCE_ICON[c.type]}</span>
-      <span style="min-width:0"><span class="nm">${c.name}</span><span class="tx">${c.text}</span></span>
-      <span class="ck">✓</span></div>`).join('');
-  $('#crumbHint').innerHTML = `本场装了 <b>${sessionCrumbs.size}</b> 条（库里共 ${CRUMBS.length} 条），
-    约 4,200 tokens，<b>全部塞进 context，不做检索</b>。进了工作台还能随时拖进拖出。`;
+function togglePlan(id){ planOn[id] = !planOn[id]; renderSetup(); }
+function bumpPlan(id, d){
+  const p = PLAN.find(x=>x.id===id);
+  planRounds[id] = Math.max(1, Math.min(p.max, planRounds[id]+d));
+  renderSetup();
+  if(id===P1) toast(`第 ① 段改成 ${planRounds[id]} 轮 —— 工作台就只问这么多。`);
+}
+function onlyFirst(){ PLAN.forEach(p=>planOn[p.id] = p.id===P1); renderSetup(); toast('只挖第 ① 段。其余几段留给下一场。'); }
+function startPlan(){
+  if(cursor > nTurns()) { cursor = 0; rounds = []; }
+  renderGrill(); go('wb');
 }
 
 /* ═══════ 挂载 / 重置 ═══════ */
@@ -1098,6 +1095,9 @@ function mountSheetKeepScroll(){
 }
 function restart(){
   cursor = 0; rounds = []; answering = false; sessionSaved = false;
+  planOn = Object.fromEntries(PLAN.map(p=>[p.id, p.on]));
+  planRounds = Object.fromEntries(PLAN.map(p=>[p.id, p.rounds]));
+  baseId = 'b1'; outputId = 'g0';
   active = new Set(); promoted = new Set(); killed = new Set(); undoStack = [];
   sessionCrumbs = new Set(CRUMBS.filter(c=>!c.off).map(c=>c.id));
   $('#cpIn').textContent = ''; composerReady(false);
@@ -1240,7 +1240,7 @@ async function autoTour(){
   tour = true; $('#autobar').classList.add('on');
   $$('#tourBtn0,#tourBtn1,#tourBtn2').forEach(b=>{b.textContent='停止演示 ❚❚';b.classList.add('on')});
   try{
-    restart(); setWay('write'); targetId='tg1'; go('landing'); tourSay('⓪ 落地页');
+    restart(); targetId='tg1'; go('landing'); tourSay('⓪ 落地页');
     const sc = $('#s-landing .scroll');
     await wait(2200); sc.scrollTo({top:$('#why').offsetTop-40,behavior:'smooth'});
     await wait(2600); sc.scrollTo({top:$('#how').offsetTop-40,behavior:'smooth'});
@@ -1248,15 +1248,16 @@ async function autoTour(){
 
     go('dash'); tourSay('① 工作区 · 按「经历」组织'); await wait(3200);
     go('opps'); tourSay('①b 机会 · 岗位和人，都是拿事实去对外部要求'); await wait(4200);
-    go('setup'); tourSay('② 投喂 · ① 产出什么（格式） ② 为谁做（Target）'); await wait(2400);
-    tourSay('② Target · JD 拆成 14 条要求：对上 / 弱 / 能问出 / 确实没有'); await wait(4000);
-    setWay('pick'); tourSay('② 方式 B · 经历按「能对上 JD 几条」重排'); await wait(3600);
-    setWay('write');
+    go('setup'); tourSay('② 作战板先行 · 一个问题都不问'); await wait(2600);
+    tourSay('② 三项配置塌缩成一句话里的三个下拉 —— 句子本身就是表单'); await wait(3200);
+    tourSay('② 一份简历由多段经历组成，每段标着「对上 JD 几条」'); await wait(3600);
+    bumpPlan(P1,-1); await wait(1600); bumpPlan(P1,1); await wait(1600);
+    tourSay('② 轮次不是摆设：改它，工作台就真的少问一轮'); await wait(2200);
     go('wb'); tourSay('③ 工作台 · 顶上常驻 Target 条，五个面板'); await wait(2600);
     openPanel('target'); maxPanel('target'); tourSay('③ 第五面板 · 要求清单（默认收起，需要时展开）'); await wait(3600);
     maxPanel('target'); cyclePanel('target'); await wait(900);
 
-    for(let i=0;i<TURNS.length;i++){
+    for(let i=0;i<nTurns();i++){
       if(!tour) throw 'stop';
       const t = TURNS[i];
       tourSay(`第 ${t.round}/6 轮 · ${t.dim}`);
@@ -1312,10 +1313,9 @@ document.addEventListener('keydown', e=>{
 });
 
 /* ═══════ 初始化 ═══════ */
-$('#ta').value = BASELINE;
-$('#taCount').textContent = `　当前 ${BASELINE.length} 字。`;
-$('#forx').innerHTML = GOALS.map((g,i)=>`<button class="chip${i?'':' on'}" onclick="pickGoal(this,'${g}')">${g}</button>`).join('');
-function pickGoal(b, g){ $$('#forx .chip').forEach(c=>c.classList.remove('on')); b.classList.add('on'); $('#goalTxt').textContent = g; }
+/* 投喂页已经没有表单字段了：目标 / 产出 / 底稿 三个下拉都在那句话里。
+   这里只保留和它无关的初始化。 */
+$('#goalTxt').textContent = GOALS[0];
 $('#specBody').innerHTML = ARTIFACT.self_intro.map(s=>segHTML(s,true)).join('');
 
 restart(); renderSetup();
@@ -1323,7 +1323,7 @@ restart(); renderSetup();
 /* 跳到某个状态：#screen=wb&round=3&panel=crumbs:min&theme=dark&promote=h10&way=pick */
 function seek(n){
   restart();
-  for(let i=0;i<n && cursor<TURNS.length;i++){
+  for(let i=0;i<n && cursor<nTurns();i++){
     const t = TURNS[cursor];
     const kind = t.status==='flagged_useless' ? 'flagged' : 'answered';
     const ids  = kind==='answered' ? t.harvest.slice() : [];
@@ -1343,7 +1343,8 @@ function seek(n){
   if(p.has('drop'))    p.get('drop').split(',').forEach(id=>sessionCrumbs.delete(id));
   if(p.has('saved'))   sessionSaved = true;
   if(p.has('target'))  targetId = p.get('target')==='none' ? null : p.get('target');
-  if(p.has('way'))     setWay(p.get('way'));
+  if(p.has('base'))    baseId = p.get('base');
+  if(p.has('plan'))    planRounds[P1] = +p.get('plan');
   if(p.has('ledger'))  setLedgerKey(p.get('ledger'));
   if(p.has('panel'))   p.get('panel').split(',').forEach(x=>{
     const [k,v] = x.split(':'); if(PANELS.includes(k)) panelState[k] = v || 'min';
