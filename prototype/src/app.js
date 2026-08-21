@@ -30,6 +30,27 @@ let undoStack = [], sessionSaved = false;
 let intakeWay = 'write', pickedExp = 'e1', ledgerKey = 'dim';
 let targetId = 'tg1', jdPasted = false;   // 本场的 Target（null = 不设目标）
 
+
+/* ═══════ 皮肤：同一个组件层，三套 token ═══════
+   调研依据写在 CSS 顶部。三套都必须守住蓝/金/红三色出处的语义。 */
+const SKINS_LIST = [
+  { key:'paper',    name:'编辑部',  note:'衬线标题 · 纸面 · 留白 —— 靠排版建立可信' },
+  { key:'terminal', name:'控制台',  note:'等宽 · 直角 · 发丝线 —— 把数据密集当成优点' },
+  { key:'bold',     name:'高饱和',  note:'品牌紫 · 大字重 · 圆润块面 —— 用记忆点对抗同质化' }
+];
+function applySkin(key){
+  const sk = SKINS_LIST.find(s=>s.key===key) || SKINS_LIST[0];
+  document.documentElement.dataset.skin = sk.key;
+  $$('.skinName').forEach(n=>n.textContent = sk.name);
+  return sk;
+}
+function cycleSkin(){
+  const cur = document.documentElement.dataset.skin || 'paper';
+  const i = SKINS_LIST.findIndex(s=>s.key===cur);
+  const sk = applySkin(SKINS_LIST[(i+1) % SKINS_LIST.length].key);
+  toast(`视觉：${sk.name} —— ${sk.note}`);
+}
+
 /* ═══════ 主题 ═══════ */
 function toggleTheme(){
   const d = document.documentElement;
@@ -1284,6 +1305,7 @@ document.addEventListener('keydown', e=>{
   const typingNow = e.target.closest('[contenteditable],input,textarea');
   if((e.metaKey||e.ctrlKey) && e.key.toLowerCase()==='z'){ e.preventDefault(); if(screenName==='wb') undo(); return; }
   if(e.key === 'Escape'){ stopTour(); pop.style.display='none'; return; }
+  if(!typingNow && e.key.toLowerCase()==='s' && !e.metaKey && !e.ctrlKey){ cycleSkin(); return; }
   if(screenName==='wb' && !typingNow && ['1','2','3','4','5'].includes(e.key)){
     e.preventDefault(); cyclePanel(PANELS[+e.key-1]);
   }
@@ -1314,6 +1336,7 @@ function seek(n){
 }
 (function bootFromHash(){
   const p = new URLSearchParams(location.hash.slice(1));
+  applySkin(p.get('skin') || document.documentElement.dataset.skin || 'paper');
   if(p.get('theme')==='dark'){ document.documentElement.dataset.theme='dark'; $$('.theme span').forEach(s=>s.textContent='☀'); }
   if(p.has('round'))   seek(+p.get('round'));
   if(p.has('promote')) p.get('promote').split(',').forEach(id=>{ if(active.has(id)) promoted.add(id); });

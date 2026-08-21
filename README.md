@@ -9,10 +9,12 @@ and shows where every generated segment came from.
 | 路径 | 是什么 |
 |---|---|
 | `prototype/grill-demo.html` | **交互原型，单文件。双击就能开** —— 无后端、无依赖、无网络请求 |
+| `prototype/skins/` | 同一个原型的三套视觉，皮肤已钉死，方便分别打开 / 分享 |
 | `prototype/src/` | 原型的源码（`head.html` 样式 / `body.html` 结构 / `app.js` 逻辑 / `data.js` 假数据） |
 | `prototype/build.sh` | 把上面四个文件拼成单文件；改完源码跑一下就行 |
 | `prototype/README.md` | **设计说明**：五屏动线、四面板系统、每个设计决策和它的理由、已知未做的部分 |
 | `docs/backend-schema.md` | 后端数据表方案（Postgres DDL）＋ 标签词表 ＋ 评测事件表 |
+| `docs/visual-directions.md` | **三套视觉方案**：调研依据、四轴对比、各自赌什么/代价、实现方式 |
 | `PRODUCT.md` | 产品定位与设计原则 |
 
 ## 跑原型
@@ -42,6 +44,8 @@ open prototype/grill-demo.html      # macOS
 - **收获账本**：按维度或按标签分栏的可数条目 —— 没有任何「完成度百分比」
 - **工作区**：按「经历」组织，每段经历带一个六格维度矩阵
 - **顶层导航**：`工作区 | 机会`——名词按用户心智分，动作按待办列
+- **三套视觉**：编辑部 / 控制台 / 高饱和，右上角 `◧` 或按 `S` 切换；`◐` 切深浅。
+  三套共用同一个组件层，只换 token —— 没有任何组件被 fork
 
 数据全部是虚构样例，只存在于这一个 HTML 文件里。
 

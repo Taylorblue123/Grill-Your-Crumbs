@@ -11,6 +11,7 @@
     </nav>
     <div class="tr">
       <button class="theme" onclick="toggleTheme()" title="切换深色 / 浅色" aria-label="切换主题"><span id="themeIc">◐</span></button>
+      <button class="skin" onclick="cycleSkin()" title="换一套视觉（编辑部 / 控制台 / 高饱和）"><i></i><span class="skinName">编辑部</span></button>
       <button class="btn ghost sm" onclick="autoTour()">看一遍完整演示 ▶</button>
       <button class="btn sm" onclick="go('dash')">进入我的工作区</button>
     </div>
@@ -118,6 +119,7 @@
     </nav>
     <div class="tr">
       <button class="theme" onclick="toggleTheme()" aria-label="切换主题"><span>◐</span></button>
+      <button class="skin" onclick="cycleSkin()" title="换一套视觉（编辑部 / 控制台 / 高饱和）"><i></i><span class="skinName">编辑部</span></button>
       <button class="gbtn" id="tourBtn0" onclick="autoTour()">自动演示 ▶</button>
       <button class="gbtn pri" onclick="go('setup')">＋ 开一场新的 Grill</button>
     </div>
@@ -168,6 +170,7 @@
     </nav>
     <div class="tr">
       <button class="theme" onclick="toggleTheme()" aria-label="切换主题"><span>◐</span></button>
+      <button class="skin" onclick="cycleSkin()" title="换一套视觉（编辑部 / 控制台 / 高饱和）"><i></i><span class="skinName">编辑部</span></button>
       <button class="gbtn" onclick="ev('add_target')">＋ 贴一个 JD</button>
       <button class="gbtn pri" onclick="go('setup')">＋ 开一场新的 Grill</button>
     </div>
@@ -222,6 +225,7 @@
     <nav class="stepper" id="stepper1"></nav>
     <div class="tr">
       <button class="theme" onclick="toggleTheme()" aria-label="切换主题"><span>◐</span></button>
+      <button class="skin" onclick="cycleSkin()" title="换一套视觉（编辑部 / 控制台 / 高饱和）"><i></i><span class="skinName">编辑部</span></button>
       <button class="gbtn" onclick="go('dash')">← 回工作区</button>
       <button class="gbtn" id="tourBtn1" onclick="autoTour()">自动演示 ▶</button>
     </div>
@@ -320,6 +324,7 @@
     <div class="goal">Grill for <b id="goalTxt">投一份实习／校招简历</b></div>
     <div class="tr">
       <button class="theme" onclick="toggleTheme()" aria-label="切换主题"><span>◐</span></button>
+      <button class="skin" onclick="cycleSkin()" title="换一套视觉（编辑部 / 控制台 / 高饱和）"><i></i><span class="skinName">编辑部</span></button>
       <button class="gbtn" id="undoBtn" onclick="undo()" disabled>撤回上一步<kbd>⌘Z</kbd></button>
       <button class="gbtn" id="tourBtn2" onclick="autoTour()">自动演示 ▶</button>
       <button class="gbtn pri" onclick="go('done')">够了，出稿 →</button>
@@ -478,6 +483,7 @@
     <nav class="stepper" id="stepper3"></nav>
     <div class="tr">
       <button class="theme" onclick="toggleTheme()" aria-label="切换主题"><span>◐</span></button>
+      <button class="skin" onclick="cycleSkin()" title="换一套视觉（编辑部 / 控制台 / 高饱和）"><i></i><span class="skinName">编辑部</span></button>
       <button class="gbtn" onclick="go('wb')">← 回工作台继续问</button>
       <button class="gbtn" onclick="ev('export_md')">导出 Markdown</button>
       <button class="gbtn pri" onclick="finishToDash()">完成，存进工作区 →</button>
