@@ -14,7 +14,9 @@ and shows where every generated segment came from.
 | `prototype/src/` | 原型的源码（`head.html` 样式 / `body.html` 结构 / `app.js` 逻辑 / `data.js` 假数据） |
 | `prototype/build.sh` | 把上面四个文件拼成单文件；改完源码跑一下就行 |
 | `prototype/README.md` | **设计说明**：五屏动线、四面板系统、每个设计决策和它的理由、已知未做的部分 |
+| `backend/` | **可运行的首个后端切片**：附件上传、文本提取、去重、Crumb 持久化和 API 测试 |
 | `docs/backend-schema.md` | 后端数据表方案（Postgres DDL）＋ 标签词表 ＋ 评测事件表 |
+| `docs/backend-api.md` | 附件 API 契约、前后端边界、生产化前必须补的安全能力 |
 | `docs/visual-directions.md` | **三套视觉方案**：调研依据、四轴对比、各自赌什么/代价、实现方式 |
 | `PRODUCT.md` | 产品定位与设计原则 |
 
@@ -31,6 +33,17 @@ open prototype/grill-demo.html      # macOS
 ```sh
 ./prototype/build.sh
 ```
+
+要体验真实附件上传，请通过后端打开 demo（直接双击仍保留纯静态演示能力）：
+
+```sh
+python3 -m venv .venv
+.venv/bin/pip install -r backend/requirements-dev.txt
+./prototype/build.sh
+.venv/bin/uvicorn app.main:app --app-dir backend --reload
+```
+
+然后打开 <http://127.0.0.1:8000>；接口文档在 `/docs`。
 
 ## 原型现在演示了什么
 
