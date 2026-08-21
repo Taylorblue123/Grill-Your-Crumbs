@@ -11,7 +11,9 @@ __pycache__/
 node_modules/
 dist/
 coverage/
-data/
+# 后端的 SQLite 和上传目录。必须锚在仓库根上：不加前导斜杠会连
+# frontend/src/data/ 这种源码目录一起吞掉。
+/data/
 .impeccable/
 .agent_context/
 .multica/
