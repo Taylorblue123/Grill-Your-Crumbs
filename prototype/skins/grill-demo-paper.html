@@ -1,0 +1,3295 @@
+<!DOCTYPE html>
+<html lang="zh-CN" data-theme="light" data-skin="paper">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Grill Your Crumbs ｜ 完整流程 Demo</title>
+<style>
+/* ════════════════════════════════════════════════════════════
+   一套 token，两个主题。落地页、dashboard、工作台、成果页
+   全部只用语义变量 —— 任何一屏都不再自带配色。
+   切主题 = 换这一层，不改任何组件。
+   ════════════════════════════════════════════════════════════ */
+:root{
+  --bg:#F6F5F2; --card:#FFFFFF; --sunk:#EFEDE8; --sunk2:#E5E2DA;
+  --line:#E2DFD7; --line-hard:#D3CFC4;
+  --fg:#1B1C22; --fg-dim:#565A69; --fg-mute:#767B8C;
+  --ink:#22242C; --on-ink:#FFFFFF;          /* 主按钮 */
+  --pop:#22242C; --pop-fg:#E7E8EE; --pop-line:#3A404E;
+  --gold:#D99B1F; --gold-bg:#FDF0D2; --gold-bd:#EFC65F; --gold-ink:#7A5407;
+  --gold-fill:#FBE0A2; --gold-flash:#FFD97A; --gold-halo:#F6E4B8;
+  --blue:#2E6FC7; --blue-bg:#E7EFFA; --blue-bd:#B8CFEC; --blue-ink:#1B4C90;
+  --red:#D6452F;  --red-bg:#FCEAE6;  --red-bd:#EDA898;  --red-ink:#8E2A19;
+  --ghost-a:#EFEDE8; --ghost-b:#E4E1DA;
+  --bullet:#C6C2B6;
+  --scroll:#D8D4CA; --scroll-h:#C4BFB2;
+  --shadow-lg:0 24px 60px -34px rgba(0,0,0,.45);
+  --shadow-sm:0 10px 30px -22px rgba(0,0,0,.5);
+  --hero:linear-gradient(180deg,#FFFFFF 0%,#F6F5F2 100%);
+  /* 形状：五档圆角 —— 皮肤只要换这几个值，整套形状语言就变了 */
+  --r1:5px; --r2:9px; --r3:12px; --r4:15px; --r5:18px; --rp:99px;
+  /* 排版：标题字族 / 字重 / 字距，以及小标签的字距与大小写 */
+  --display:var(--sans); --h-weight:670; --h-track:-.5px;
+  --lbl-track:1.2px; --lbl-case:none;
+  --on-gold:#2A1C02;
+  --r:12px;
+  --sans:-apple-system,BlinkMacSystemFont,"Inter","PingFang SC","Hiragino Sans GB","Microsoft YaHei",sans-serif;
+  --mono:ui-monospace,SFMono-Regular,"SF Mono",Menlo,monospace;
+}
+[data-theme="dark"]{
+  --bg:#0C0D11; --card:#161922; --sunk:#12141A; --sunk2:#1E222D;
+  --line:#262C39; --line-hard:#394152;
+  --fg:#E9EBF2; --fg-dim:#AAB2C4; --fg-mute:#8A92A6;
+  --ink:#E9EBF2; --on-ink:#0C0D11;
+  --pop:#F4F4F7; --pop-fg:#22242C; --pop-line:#D8D8DE;
+  --gold:#F2B441; --gold-bg:rgba(242,180,65,.15); --gold-bd:rgba(242,180,65,.46); --gold-ink:#F7CF87;
+  --gold-fill:rgba(242,180,65,.30); --gold-flash:rgba(242,180,65,.55); --gold-halo:rgba(242,180,65,.18);
+  --blue:#5FA8FF; --blue-bg:rgba(95,168,255,.15); --blue-bd:rgba(95,168,255,.42); --blue-ink:#A6CDFF;
+  --red:#FF7061;  --red-bg:rgba(255,112,97,.14); --red-bd:rgba(255,112,97,.46);  --red-ink:#FFA79C;
+  --ghost-a:#1A1E28; --ghost-b:#222735;
+  --bullet:#4A5266;
+  --scroll:#2C3342; --scroll-h:#3B4356;
+  --shadow-lg:0 24px 60px -30px rgba(0,0,0,.9);
+  --shadow-sm:0 10px 30px -20px rgba(0,0,0,.85);
+  --hero:linear-gradient(180deg,#12141B 0%,#0C0D11 100%);
+}
+*{box-sizing:border-box;margin:0;padding:0}
+html,body{height:100%}
+body{background:var(--bg);color:var(--fg);font-family:var(--sans);font-size:15px;line-height:1.65;
+  -webkit-font-smoothing:antialiased;overflow:hidden}
+/* 注意：不要给 body 的 color 加 transition —— 主题切换时它会把继承下去的
+   文字颜色卡在旧值上（整份稿子会变成暗底暗字）。背景色单独渐变就够了。 */
+body{transition:background-color .25s}
+button{font:inherit;color:inherit;background:none;border:none;cursor:pointer}
+textarea,input{font:inherit;color:inherit}
+b,strong{font-weight:650}
+a{color:inherit}
+:focus-visible{outline:2px solid var(--blue);outline-offset:2px;border-radius:var(--r2)}
+::-webkit-scrollbar{width:9px;height:9px}
+::-webkit-scrollbar-thumb{background:var(--scroll);border-radius:var(--r2)}
+::-webkit-scrollbar-thumb:hover{background:var(--scroll-h)}
+.sr{position:absolute;width:1px;height:1px;overflow:hidden;clip:rect(0 0 0 0);white-space:nowrap}
+.num{font-variant-numeric:tabular-nums}
+
+
+/* ════════════════════════════════════════════════════════════
+   三套皮肤 · 同一个组件层，只换 token
+   调研依据（2026）：
+   A 编辑部  ← 「trust is the product」＋ 编辑型高对比衬线回潮、warm minimalism
+   B 控制台  ← Vercel 一脉的 mono/黑白开发者美学，适合数据密集界面（功能性野兽派是长青的，
+                但「潮流野兽派」2026 年 3 月见顶后在退，所以这一套走克制的功能路线而不是造型秀）
+   C 高饱和  ← 饱和色 + 表达型字体 + 可复用的标志性 UI 图形，用品牌记忆点对抗同质化
+   三套都必须守住同一条产品底线：蓝 / 金 / 红三色出处的语义不能变。
+   ════════════════════════════════════════════════════════════ */
+
+/* ── A · 编辑部（默认）：纸、衬线标题、留白，靠排版建立可信 ── */
+[data-skin="paper"]{
+  --bg:#F7F5EF; --card:#FFFDF9; --sunk:#F0EDE4; --sunk2:#E5E1D5;
+  --line:#E4E0D5; --line-hard:#D2CCBB;
+  --fg:#1C1A17; --fg-dim:#514D45; --fg-mute:#6C665B;
+  --ink:#232019; --on-ink:#FFFDF9; --on-gold:#3A2705;
+  --pop:#232019; --pop-fg:#F2EDE2; --pop-line:#443E31;
+  --gold:#B4791A; --gold-bg:#FBF1DA; --gold-bd:#E0BC69; --gold-ink:#6B4405;
+  --gold-fill:#F7E3B0; --gold-flash:#FFD98A; --gold-halo:#F1E2BC;
+  --blue:#2A5FA8; --blue-bg:#E9EFF8; --blue-bd:#B3C8E3; --blue-ink:#1A4374;
+  --red:#B33A28; --red-bg:#FAEAE5; --red-bd:#E3A796; --red-ink:#78261A;
+  --ghost-a:#F0EDE4; --ghost-b:#E6E2D7; --bullet:#C4BCA8;
+  --scroll:#DBD5C6; --scroll-h:#C6BFAC;
+  --display:Georgia,"Times New Roman","Songti SC","Noto Serif SC",serif;
+  --h-weight:620; --h-track:-.2px; --lbl-track:1.3px;
+  --r1:5px; --r2:9px; --r3:13px; --r4:16px; --r5:20px;
+  --shadow-lg:0 30px 70px -42px rgba(70,52,20,.4);
+  --shadow-sm:0 12px 28px -22px rgba(70,52,20,.45);
+  --hero:linear-gradient(180deg,#FFFDF9 0%,#F7F5EF 100%);
+}
+[data-skin="paper"][data-theme="dark"]{
+  --bg:#141210; --card:#1D1A16; --sunk:#191612; --sunk2:#26221B;
+  --line:#2D2921; --line-hard:#3F392E;
+  --fg:#F1EBDE; --fg-dim:#B5AC99; --fg-mute:#8C8474;
+  --ink:#F1EBDE; --on-ink:#141210; --on-gold:#2A1C02;
+  --pop:#F1EBDE; --pop-fg:#1D1A16; --pop-line:#CFC6B2;
+  --gold:#E8B24A; --gold-bg:rgba(232,178,74,.15); --gold-bd:rgba(232,178,74,.45); --gold-ink:#F0CC8A;
+  --gold-fill:rgba(232,178,74,.3); --gold-flash:rgba(232,178,74,.55); --gold-halo:rgba(232,178,74,.18);
+  --blue:#7FB0F0; --blue-bg:rgba(127,176,240,.15); --blue-bd:rgba(127,176,240,.42); --blue-ink:#AECDF7;
+  --red:#F0806E; --red-bg:rgba(240,128,110,.14); --red-bd:rgba(240,128,110,.46); --red-ink:#F5A99B;
+  --ghost-a:#221E19; --ghost-b:#2B2620; --bullet:#544C3E;
+  --scroll:#332E26; --scroll-h:#453E32;
+  --hero:linear-gradient(180deg,#1A1713 0%,#141210 100%);
+}
+/* 编辑部：正文更松，标题更沉 */
+[data-skin="paper"] .hero h1{font-size:43px;line-height:1.24}
+[data-skin="paper"] .lede,[data-skin="paper"] .band .sub{line-height:1.85}
+[data-skin="paper"] .q{font-size:18.5px;line-height:1.68}
+[data-skin="paper"] .old,[data-skin="paper"] .intro{font-family:var(--display)}
+[data-skin="paper"] .kick{font-family:var(--display);font-style:italic;letter-spacing:.4px;text-transform:none}
+
+/* ── B · 控制台：等宽、直角、发丝线，把「数据密集」当成优点 ── */
+[data-skin="terminal"]{
+  --bg:#FFFFFF; --card:#FFFFFF; --sunk:#FAFAFA; --sunk2:#EFEFEF;
+  --line:#E6E6E6; --line-hard:#C4C4C4;
+  --fg:#0A0A0A; --fg-dim:#454545; --fg-mute:#666666;
+  --ink:#0A0A0A; --on-ink:#FFFFFF; --on-gold:#3A2000;
+  --pop:#0A0A0A; --pop-fg:#EDEDED; --pop-line:#2E2E2E;
+  --gold:#B45309; --gold-bg:#FDF3E3; --gold-bd:#E0B278; --gold-ink:#7C3D06;
+  --gold-fill:#FBE4BE; --gold-flash:#F7CE8E; --gold-halo:#F5E4CB;
+  --blue:#0B5FCC; --blue-bg:#EBF3FE; --blue-bd:#A6C6F2; --blue-ink:#08407F;
+  --red:#D32F2F; --red-bg:#FDECEC; --red-bd:#EFA5A5; --red-ink:#951B1B;
+  --ghost-a:#F4F4F4; --ghost-b:#E9E9E9; --bullet:#B8B8B8;
+  --scroll:#D4D4D4; --scroll-h:#B4B4B4;
+  --display:var(--mono); --h-weight:600; --h-track:-.3px; --lbl-track:1.8px; --lbl-case:uppercase;
+  --r1:0px; --r2:2px; --r3:2px; --r4:3px; --r5:3px; --rp:2px;
+  --shadow-lg:none; --shadow-sm:none;
+  --hero:linear-gradient(180deg,#FFFFFF 0%,#FAFAFA 100%);
+}
+[data-skin="terminal"][data-theme="dark"]{
+  --bg:#000000; --card:#0B0B0B; --sunk:#060606; --sunk2:#181818;
+  --line:#212121; --line-hard:#383838;
+  --fg:#EDEDED; --fg-dim:#A6A6A6; --fg-mute:#7E7E7E;
+  --ink:#EDEDED; --on-ink:#000000; --on-gold:#1A0E00;
+  --pop:#EDEDED; --pop-fg:#0B0B0B; --pop-line:#C4C4C4;
+  --gold:#F5A524; --gold-bg:rgba(245,165,36,.13); --gold-bd:rgba(245,165,36,.42); --gold-ink:#F7C46B;
+  --gold-fill:rgba(245,165,36,.26); --gold-flash:rgba(245,165,36,.5); --gold-halo:rgba(245,165,36,.16);
+  --blue:#3B9EFF; --blue-bg:rgba(59,158,255,.13); --blue-bd:rgba(59,158,255,.4); --blue-ink:#8CC5FF;
+  --red:#FF5C5C; --red-bg:rgba(255,92,92,.12); --red-bd:rgba(255,92,92,.42); --red-ink:#FF9494;
+  --ghost-a:#111111; --ghost-b:#1A1A1A; --bullet:#3D3D3D;
+  --scroll:#262626; --scroll-h:#3A3A3A;
+  --hero:linear-gradient(180deg,#080808 0%,#000000 100%);
+}
+/* 控制台：所有 UI 铬件走等宽，正文保持易读的无衬线 */
+[data-skin="terminal"] .brand,[data-skin="terminal"] .gbtn,[data-skin="terminal"] .btn,
+[data-skin="terminal"] .navlink,[data-skin="terminal"] .step,[data-skin="terminal"] .pchip,
+[data-skin="terminal"] .tab,[data-skin="terminal"] .act,[data-skin="terminal"] .mini,
+[data-skin="terminal"] .mini2,[data-skin="terminal"] .tg,[data-skin="terminal"] .rstat,
+[data-skin="terminal"] .chip,[data-skin="terminal"] .kindtag,[data-skin="terminal"] .state,
+[data-skin="terminal"] .heat,[data-skin="terminal"] .qsrc,[data-skin="terminal"] .jdchip,
+[data-skin="terminal"] .kd,[data-skin="terminal"] .num,[data-skin="terminal"] .cl,
+[data-skin="terminal"] .panel-h h3,[data-skin="terminal"] .sect-h h3,
+[data-skin="terminal"] .blab,[data-skin="terminal"] .pn-t,[data-skin="terminal"] .hb-h h3,
+[data-skin="terminal"] .csec-h,[data-skin="terminal"] .reqsec>h6,[data-skin="terminal"] .dimgroup,
+[data-skin="terminal"] .lbl,[data-skin="terminal"] .why2,[data-skin="terminal"] .c3 .n{
+  font-family:var(--mono);letter-spacing:0}
+[data-skin="terminal"] .panel-h h3,[data-skin="terminal"] .sect-h h3,[data-skin="terminal"] .blab,
+[data-skin="terminal"] .csec-h,[data-skin="terminal"] .reqsec>h6,[data-skin="terminal"] .pn-t,
+[data-skin="terminal"] .hb-h h3,[data-skin="terminal"] .why2{text-transform:uppercase;letter-spacing:var(--lbl-track)}
+[data-skin="terminal"] .hero h1{font-size:34px;line-height:1.32;letter-spacing:-1px}
+[data-skin="terminal"] .q{font-size:16px;line-height:1.6}
+[data-skin="terminal"] .spec,[data-skin="terminal"] .exp,[data-skin="terminal"] .opp,
+[data-skin="terminal"] .peer,[data-skin="terminal"] .scard,[data-skin="terminal"] .c3,
+[data-skin="terminal"] .qcard,[data-skin="terminal"] .pn,[data-skin="terminal"] .sect{box-shadow:none}
+[data-skin="terminal"] .kick{border-radius:0;text-transform:uppercase}
+[data-skin="terminal"] .brand .dot{border-radius:0}
+
+/* ── C · 高饱和：品牌紫 + 大字重 + 圆润块面，用记忆点对抗同质化 ── */
+[data-skin="bold"]{
+  --bg:#F6F4FF; --card:#FFFFFF; --sunk:#EFEBFF; --sunk2:#E2DBFF;
+  --line:#E2DCFA; --line-hard:#C7BDF2;
+  --fg:#140E2E; --fg-dim:#443C72; --fg-mute:#615A8C;
+  --ink:#4C1DD9; --on-ink:#FFFFFF; --on-gold:#3A2400;
+  --pop:#1B0F45; --pop-fg:#EFEBFF; --pop-line:#3A2A7A;
+  --gold:#F59E0B; --gold-bg:#FFF3D8; --gold-bd:#FBBF24; --gold-ink:#8A4B06;
+  --gold-fill:#FDE38A; --gold-flash:#FCD34D; --gold-halo:#FDE9B4;
+  --blue:#2563EB; --blue-bg:#E5EDFF; --blue-bd:#A7C2FF; --blue-ink:#1A3E9E;
+  --red:#E11D48; --red-bg:#FFE8ED; --red-bd:#F9A3B9; --red-ink:#9C1236;
+  --ghost-a:#EDE9FC; --ghost-b:#E3DDF8; --bullet:#BCB2E8;
+  --scroll:#D5CCF5; --scroll-h:#BCAFEE;
+  --h-weight:800; --h-track:-1.2px; --lbl-track:1px;
+  --r1:8px; --r2:12px; --r3:16px; --r4:20px; --r5:26px;
+  --shadow-lg:0 28px 60px -26px rgba(76,29,217,.4);
+  --shadow-sm:0 12px 26px -14px rgba(76,29,217,.28);
+  --hero:linear-gradient(165deg,#EFE9FF 0%,#F6F4FF 55%,#FFF6E8 100%);
+}
+[data-skin="bold"][data-theme="dark"]{
+  --bg:#0B0620; --card:#160E36; --sunk:#120A2C; --sunk2:#1F1548;
+  --line:#2B2059; --line-hard:#3E3080;
+  --fg:#F3F0FF; --fg-dim:#B8AFE8; --fg-mute:#8C82C2;
+  --ink:#A78BFA; --on-ink:#0B0620; --on-gold:#241500;
+  --pop:#F3F0FF; --pop-fg:#160E36; --pop-line:#CFC5F5;
+  --gold:#FBBF24; --gold-bg:rgba(251,191,36,.16); --gold-bd:rgba(251,191,36,.48); --gold-ink:#FBD87E;
+  --gold-fill:rgba(251,191,36,.32); --gold-flash:rgba(251,191,36,.58); --gold-halo:rgba(251,191,36,.2);
+  --blue:#60A5FA; --blue-bg:rgba(96,165,250,.16); --blue-bd:rgba(96,165,250,.45); --blue-ink:#A5C8FF;
+  --red:#FB7185; --red-bg:rgba(251,113,133,.15); --red-bd:rgba(251,113,133,.48); --red-ink:#FCA5B5;
+  --ghost-a:#1A1140; --ghost-b:#241850; --bullet:#4C3E8C;
+  --scroll:#2E2266; --scroll-h:#413090;
+  --hero:linear-gradient(165deg,#1A0F44 0%,#0B0620 60%,#2A1206 100%);
+}
+/* 高饱和：标题更大更重，主按钮是品牌紫，卡片有实体感 */
+[data-skin="bold"] .hero h1{font-size:46px;line-height:1.16}
+[data-skin="bold"] .band h2,[data-skin="bold"] .endcta h2{font-size:30px}
+[data-skin="bold"] .kick{font-weight:800;letter-spacing:1.8px;text-transform:uppercase}
+[data-skin="bold"] .btn{background:var(--ink);color:var(--on-ink)}
+[data-skin="bold"] .btn:hover{filter:brightness(1.12)}
+[data-skin="bold"] .btn.ghost{background:transparent;color:var(--fg-dim)}
+[data-skin="bold"] .gbtn.pri{background:var(--ink);border-color:var(--ink);color:var(--on-ink)}
+[data-skin="bold"] .step.on b{background:var(--ink);color:var(--on-ink)}
+[data-skin="bold"] .exp,[data-skin="bold"] .opp,[data-skin="bold"] .c3,
+[data-skin="bold"] .peer,[data-skin="bold"] .scard{box-shadow:var(--shadow-sm)}
+[data-skin="bold"] .q{font-size:18px;font-weight:640;letter-spacing:-.3px}
+[data-skin="bold"] .tile b,[data-skin="bold"] .bs b,[data-skin="bold"] .mcell b{letter-spacing:-1.4px}
+
+/* 皮肤切换按钮 */
+.skin{display:flex;align-items:center;gap:6px;height:32px;padding:0 11px;border-radius:var(--r2);
+  border:1px solid var(--line-hard);color:var(--fg-dim);font-size:12px;white-space:nowrap;flex:none}
+.skin:hover{background:var(--sunk);color:var(--fg)}
+.skin i{width:9px;height:9px;border-radius:var(--r1);flex:none;background:var(--gold);font-style:normal}
+@media(max-width:900px){ .skin span{display:none} }
+
+/* ═══════════ 屏幕容器 ═══════════ */
+.stage{position:fixed;inset:0}
+.screen{position:absolute;inset:0;display:none;flex-direction:column;overflow:hidden}
+.screen.on{display:flex}
+.scroll{flex:1;min-height:0;overflow:auto}
+
+/* ═══════════ 通用外壳 ═══════════ */
+.top{flex:none;height:56px;display:flex;align-items:center;gap:14px;padding:0 18px;
+  background:var(--card);border-bottom:1px solid var(--line)}
+.brand{display:flex;align-items:center;gap:9px;font-weight:660;white-space:nowrap;letter-spacing:.1px}
+.brand .dot{width:9px;height:9px;border-radius:50%;background:var(--gold);box-shadow:0 0 0 4px var(--gold-halo)}
+.brand small{color:var(--fg-mute);font-weight:500;font-size:11.5px;letter-spacing:.7px}
+.tr{margin-left:auto;display:flex;align-items:center;gap:8px}
+.gbtn{border:1px solid var(--line-hard);border-radius:var(--r3);padding:6px 13px;font-size:13px;
+  color:var(--fg-dim);background:var(--card);transition:.15s;white-space:nowrap}
+.gbtn:hover:not([disabled]){background:var(--sunk);color:var(--fg)}
+.gbtn[disabled]{opacity:.4;cursor:not-allowed}
+.gbtn.on{background:var(--ink);border-color:var(--ink);color:var(--on-ink)}
+.gbtn.pri{background:var(--gold);border-color:var(--gold);color:var(--on-gold);font-weight:640}
+.gbtn.pri:hover:not([disabled]){filter:brightness(1.06)}
+.gbtn kbd{font-family:var(--mono);font-size:10px;opacity:.6;margin-left:4px}
+.theme{width:32px;height:32px;border-radius:var(--r3);border:1px solid var(--line-hard);display:grid;
+  place-items:center;font-size:14px;color:var(--fg-dim);flex:none}
+.theme:hover{background:var(--sunk);color:var(--fg)}
+.navlink{font-size:13.5px;color:var(--fg-mute);padding:6px 11px;border-radius:var(--r3);text-decoration:none}
+.navlink:hover{color:var(--fg);background:var(--sunk)}
+.navlink.on{color:var(--fg);background:var(--sunk);font-weight:600}
+
+.stepper{display:flex;align-items:center;gap:2px;margin-left:6px}
+.step{display:flex;align-items:center;gap:7px;padding:5px 11px;border-radius:var(--rp);
+  color:var(--fg-mute);font-size:13px;transition:.16s}
+.step b{width:18px;height:18px;border-radius:50%;display:grid;place-items:center;
+  background:var(--sunk2);font-size:10.5px;font-weight:700;color:var(--fg-mute)}
+.step:hover:not(.on){color:var(--fg-dim)}
+.step.on{background:var(--sunk);color:var(--fg);font-weight:600}
+.step.on b{background:var(--gold);color:var(--on-gold)}
+.step.done b{background:var(--gold-bg);color:var(--gold-ink)}
+.sep{width:12px;height:1px;background:var(--line-hard)}
+.goal{display:flex;align-items:center;gap:7px;font-size:12.5px;color:var(--fg-dim);
+  background:var(--sunk);border:1px solid var(--line);border-radius:var(--rp);padding:5px 12px;white-space:nowrap}
+.goal b{color:var(--fg);font-weight:620}
+
+.btn{border-radius:var(--r3);padding:10px 20px;font-size:14.5px;font-weight:640;
+  background:var(--gold);color:var(--on-gold);transition:.16s;white-space:nowrap}
+.btn:hover{filter:brightness(1.07);transform:translateY(-1px)}
+.btn.ghost{background:transparent;border:1px solid var(--line-hard);color:var(--fg-dim);font-weight:540}
+.btn.ghost:hover{background:var(--sunk);color:var(--fg);transform:none}
+.btn.ink{background:var(--ink);color:var(--on-ink)}
+.btn.sm{padding:7px 14px;font-size:13px;border-radius:var(--r3)}
+
+/* ═══════════ ⓪ 落地页 ═══════════ */
+.lwrap{max-width:1120px;margin:0 auto;padding:0 30px}
+.herowrap{background:var(--hero);border-bottom:1px solid var(--line)}
+.hero{display:grid;grid-template-columns:1.02fr .98fr;gap:56px;align-items:center;padding:66px 0 62px}
+.kick{display:inline-flex;align-items:center;gap:8px;font-size:11.5px;letter-spacing:1.5px;
+  color:var(--gold-ink);font-weight:750;border:1px solid var(--gold-bd);
+  background:var(--gold-bg);border-radius:var(--rp);padding:5px 13px}
+.hero h1{font-family:var(--display);font-size:41px;line-height:1.28;font-weight:var(--h-weight);letter-spacing:var(--h-track);margin-top:20px}
+.hero h1 em{font-style:normal;background:linear-gradient(transparent 62%,var(--gold-bd) 62%);padding:0 3px}
+.hero .lede{font-size:16.5px;line-height:1.8;color:var(--fg-dim);margin-top:20px;max-width:34em}
+.hero .lede b{color:var(--fg);font-weight:620}
+.hcta{display:flex;gap:12px;align-items:center;margin-top:30px;flex-wrap:wrap}
+.hnote{font-size:12.5px;color:var(--fg-mute);margin-top:16px}
+.hnote code{font-family:var(--mono);font-size:11.5px;color:var(--fg-dim)}
+
+.spec{background:var(--card);border:1px solid var(--line);border-radius:var(--r5);padding:24px 26px 20px;
+  box-shadow:var(--shadow-lg)}
+.spec .st{display:flex;align-items:center;gap:8px;font-size:10px;letter-spacing:1.3px;
+  color:var(--fg-mute);font-weight:750;padding-bottom:9px;border-bottom:1px solid var(--line)}
+.spec .st .pill{background:var(--gold-bg);color:var(--gold-ink);border:1px solid var(--gold-bd);
+  border-radius:var(--rp);padding:1px 8px;letter-spacing:.4px}
+.spec .body{font-size:13.6px;line-height:1.95;margin-top:13px}
+.spec .foot{display:flex;gap:13px;flex-wrap:wrap;margin-top:15px;padding-top:12px;border-top:1px dashed var(--line-hard)}
+.spec .foot span{font-size:11px;color:var(--fg-mute);display:flex;align-items:center;gap:5px}
+.spec .foot i{width:9px;height:9px;border-radius:var(--r1);display:block}
+
+.band{padding:54px 0;border-bottom:1px solid var(--line)}
+.band h2{font-family:var(--display);font-size:26px;font-weight:var(--h-weight);letter-spacing:-.4px}
+.band .sub{color:var(--fg-dim);margin-top:9px;font-size:15px}
+.cards3{display:grid;grid-template-columns:repeat(3,1fr);gap:16px;margin-top:30px}
+.c3{background:var(--card);border:1px solid var(--line);border-radius:var(--r4);padding:22px 22px 20px}
+.c3 .n{font-size:11px;font-weight:750;letter-spacing:1.2px;color:var(--gold-ink)}
+.c3 h3{font-size:17px;font-weight:640;margin-top:11px;line-height:1.45}
+.c3 p{font-size:13.5px;color:var(--fg-dim);line-height:1.75;margin-top:9px}
+.c3 .ex{margin-top:14px;background:var(--sunk);border:1px solid var(--line);border-radius:var(--r3);
+  padding:11px 13px;font-size:12.3px;color:var(--fg-dim);line-height:1.7}
+.c3 .ex b{color:var(--gold-ink);font-weight:680}
+
+.flow{display:grid;grid-template-columns:repeat(4,1fr);gap:14px;margin-top:28px}
+.fs{background:var(--card);border:1px solid var(--line);border-radius:var(--r4);padding:18px 18px 16px;position:relative}
+.fs .i{width:26px;height:26px;border-radius:var(--r3);background:var(--gold-bg);color:var(--gold-ink);
+  display:grid;place-items:center;font-size:12px;font-weight:750}
+.fs h4{font-size:15px;font-weight:640;margin-top:11px}
+.fs p{font-size:12.8px;color:var(--fg-mute);line-height:1.7;margin-top:6px}
+.fs .t{position:absolute;right:16px;top:16px;font-size:11px;color:var(--fg-mute);
+  border:1px solid var(--line);border-radius:var(--rp);padding:2px 8px}
+.promise{display:flex;gap:10px;flex-wrap:wrap;margin-top:20px}
+.pm{display:flex;align-items:center;gap:8px;font-size:12.8px;color:var(--fg-dim);
+  background:var(--card);border:1px solid var(--line);border-radius:var(--rp);padding:7px 14px}
+.pm em{font-style:normal;color:var(--gold);font-weight:800}
+.endcta{padding:52px 0 60px;text-align:center}
+.endcta h2{font-family:var(--display);font-size:28px;font-weight:var(--h-weight);letter-spacing:-.5px}
+.endcta p{color:var(--fg-dim);margin-top:10px;font-size:15px}
+.endcta .row{display:flex;gap:12px;justify-content:center;margin-top:24px}
+.lfoot{color:var(--fg-mute);font-size:12px;text-align:center;padding:0 0 34px}
+
+/* ═══════════ ① Dashboard ═══════════ */
+.dash{max-width:1240px;margin:0 auto;padding:30px 30px 70px}
+.dhead{display:flex;align-items:flex-end;gap:18px;flex-wrap:wrap}
+.dhead h1{font-family:var(--display);font-size:26px;font-weight:var(--h-weight);letter-spacing:-.5px}
+.dhead p{color:var(--fg-mute);font-size:13.5px;margin-top:5px}
+.dhead .r{margin-left:auto;display:flex;gap:9px}
+/* 待办条：动作归动作，别混进名词分类里 */
+.inbox{display:flex;align-items:center;gap:14px;flex-wrap:wrap;margin-top:20px;
+  background:var(--gold-bg);border:1px solid var(--gold-bd);border-radius:var(--r4);padding:13px 18px}
+.inbox .t{font-size:13.2px;color:var(--gold-ink);line-height:1.6;flex:1;min-width:240px}
+.inbox .t b{font-weight:750}
+.inbox .a{display:flex;gap:8px;flex-wrap:wrap}
+.inbox.calm{background:var(--card);border-color:var(--line)}
+.inbox.calm .t{color:var(--fg-mute)}
+
+.shelfhead{display:flex;align-items:baseline;gap:10px;margin:26px 0 4px}
+.shelfhead h2{font-family:var(--display);font-size:16px;font-weight:var(--h-weight);letter-spacing:-.2px}
+.shelfhead .c{font-size:10.5px;font-weight:750;border-radius:var(--rp);padding:1px 7px;
+  background:var(--sunk2);color:var(--fg-dim)}
+.shelfhead p{font-size:12px;color:var(--fg-mute);margin-left:auto;text-align:right;line-height:1.5}
+
+/* ── 经历卡：Dashboard 的主体单位 ── */
+.expgrid{display:grid;grid-template-columns:1fr 1fr;gap:14px;margin-top:12px}
+.exp{background:var(--card);border:1px solid var(--line);border-radius:var(--r5);overflow:hidden;
+  display:flex;flex-direction:column;transition:.15s}
+.exp:hover{border-color:var(--line-hard)}
+.exp.now{border-color:var(--gold-bd);box-shadow:0 0 0 3px var(--gold-bg)}
+.exp-h{padding:15px 18px 12px}
+.exp-h .t1{font-family:var(--display);font-size:15.5px;font-weight:660;display:flex;align-items:center;gap:8px;flex-wrap:wrap;line-height:1.45}
+.exp-h .t2{font-size:11.8px;color:var(--fg-mute);margin-top:4px}
+/* 维度矩阵：6 格，填了几格是可数的，不是完成度 */
+.matrix{display:grid;grid-template-columns:repeat(6,1fr);gap:4px;padding:0 18px 12px}
+.mcell{border:1px solid var(--line);border-radius:var(--r2);padding:6px 4px;text-align:center;background:var(--sunk)}
+.mcell.has{background:var(--gold-bg);border-color:var(--gold-bd)}
+.mcell b{display:block;font-size:14px;font-weight:750;color:var(--fg-mute);line-height:1.2}
+.mcell.has b{color:var(--gold-ink)}
+.mcell span{display:block;font-size:8.5px;color:var(--fg-mute);margin-top:2px;line-height:1.25;
+  white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.exp-stat{display:flex;gap:14px;flex-wrap:wrap;padding:0 18px 12px;font-size:11.5px;color:var(--fg-mute)}
+.exp-stat b{color:var(--fg);font-weight:700}
+.exp-arts{padding:0 18px 12px;display:flex;gap:6px;flex-wrap:wrap;align-items:center}
+.artchip{font-size:10.5px;border:1px solid var(--blue-bd);background:var(--blue-bg);color:var(--blue-ink);
+  border-radius:var(--r2);padding:2px 7px;font-weight:600}
+.artchip.none{border-color:var(--line-hard);background:var(--sunk);color:var(--fg-mute);
+  border-style:dashed;font-weight:500}
+.exp-f{margin-top:auto;border-top:1px solid var(--line);background:var(--sunk);
+  padding:9px 14px;display:flex;gap:7px;align-items:center;flex-wrap:wrap}
+.exp-f .when{margin-left:auto;font-size:10.5px;color:var(--fg-mute)}
+.expfacts{border-top:1px solid var(--line);padding:11px 18px 13px;display:none;background:var(--sunk)}
+.exp.open .expfacts{display:block}
+.fb{background:var(--card);border:1px solid var(--line);border-radius:var(--r3);padding:8px 10px;margin-bottom:5px}
+.fb.cand{background:var(--gold-bg);border-color:var(--gold-bd)}
+.fb .tx{font-size:11.8px;line-height:1.55}
+.fb .mt{display:flex;gap:6px;align-items:center;margin-top:5px;font-size:10.2px;color:var(--fg-mute);flex-wrap:wrap}
+.dimgroup{display:flex;align-items:center;gap:8px;margin:9px 0 5px;font-size:10.5px;
+  font-weight:750;color:var(--fg-mute);letter-spacing:.4px}
+.dimgroup:first-child{margin-top:0}
+.dimgroup .ln{flex:1;height:1px;background:var(--line)}
+.dimgroup .c{font-size:10px;background:var(--sunk2);border-radius:var(--rp);padding:0 6px;font-weight:750}
+
+/* ── 次级货架：产出物 / 材料，横向卡片 ── */
+.strip{display:grid;grid-template-columns:repeat(3,1fr);gap:12px;margin-top:12px}
+.scard{background:var(--card);border:1px solid var(--line);border-radius:var(--r4);padding:14px 16px}
+.scard:hover{border-color:var(--line-hard)}
+.scard .t1{font-size:13.5px;font-weight:640;display:flex;align-items:center;gap:7px;flex-wrap:wrap;line-height:1.45}
+.scard .t2{font-size:11.3px;color:var(--fg-mute);margin-top:4px;line-height:1.6}
+.scard .t2 b{color:var(--fg-dim)}
+.scard .a{display:flex;gap:6px;margin-top:11px}
+.provbar{display:flex;height:5px;border-radius:var(--r1);overflow:hidden;background:var(--line);margin-top:8px}
+.provbar i{display:block;height:100%}
+.provbar .s{background:var(--blue)} .provbar .g{background:var(--gold)} .provbar .f{background:var(--red-bd)}
+.srcgrid{display:grid;grid-template-columns:repeat(4,1fr);gap:8px;margin-top:12px}
+.scell{background:var(--card);border:1px solid var(--line);border-radius:var(--r3);padding:10px 12px}
+.scell .t1{font-size:11.8px;font-weight:620;display:flex;align-items:center;gap:6px;
+  overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.scell .t2{font-size:10.5px;color:var(--fg-mute);margin-top:4px}
+.scell .ic{width:19px;height:19px;flex:none;border-radius:var(--r2);background:var(--blue-bg);
+  color:var(--blue);display:grid;place-items:center;font-size:10px}
+
+.state{font-size:10px;font-weight:750;border-radius:var(--rp);padding:1px 8px;letter-spacing:.3px}
+.state.done{background:var(--gold-bg);color:var(--gold-ink);border:1px solid var(--gold-bd)}
+.state.live{background:var(--red-bg);color:var(--red-ink);border:1px solid var(--red-bd)}
+.state.draft{background:var(--sunk2);color:var(--fg-mute);border:1px solid var(--line)}
+.mini2{font-size:11.5px;padding:4px 10px;border-radius:var(--r2);border:1px solid var(--line-hard);color:var(--fg-mute)}
+.mini2:hover{background:var(--card);color:var(--fg)}
+.mini2.pri{background:var(--ink);border-color:var(--ink);color:var(--on-ink);font-weight:600}
+.mini2.gold{background:var(--gold);border-color:var(--gold);color:var(--on-gold);font-weight:640}
+
+
+/* ═══════════ ② 投喂 ═══════════ */
+.setup{max-width:840px;margin:0 auto;padding:36px 30px 90px}
+.setup .kick2{font-size:11px;letter-spacing:1.5px;color:var(--gold-ink);font-weight:750}
+.setup h1{font-family:var(--display);font-size:27px;line-height:1.42;font-weight:var(--h-weight);letter-spacing:var(--h-track);margin-top:12px}
+.setup h1 em{font-style:normal;background:linear-gradient(transparent 62%,var(--gold-bd) 62%)}
+.setup .lede{color:var(--fg-dim);font-size:14.5px;margin-top:12px;line-height:1.8}
+/* 两种投喂方式 */
+.ways{display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-top:20px}
+.way{text-align:left;background:var(--card);border:1px solid var(--line-hard);border-radius:var(--r4);padding:15px 17px;transition:.15s}
+.way:hover{border-color:var(--fg-mute)}
+.way.on{border-color:var(--ink);box-shadow:0 0 0 2px var(--sunk2)}
+.way .wt{display:flex;align-items:center;gap:9px;font-size:15px;font-weight:650}
+.way .wt .i{width:22px;height:22px;border-radius:var(--r2);display:grid;place-items:center;font-size:11px;
+  font-weight:800;background:var(--sunk2);color:var(--fg-mute);flex:none}
+.way.on .wt .i{background:var(--gold);color:var(--on-gold)}
+.way p{font-size:12.5px;color:var(--fg-mute);line-height:1.68;margin-top:7px}
+.wayBody{display:none;margin-top:22px}
+.wayBody.on{display:block}
+/* 方式 B：从材料里聚出来的候选经历 */
+.expopts{display:grid;gap:10px}
+.eopt{text-align:left;background:var(--card);border:1px solid var(--line);border-radius:var(--r4);
+  padding:14px 16px;transition:.15s;position:relative}
+.eopt:hover{border-color:var(--line-hard)}
+.eopt.on{border-color:var(--ink);box-shadow:0 0 0 2px var(--sunk2)}
+.eopt.na{opacity:.6}
+.eopt .et{display:flex;align-items:center;gap:9px;font-size:15px;font-weight:640;flex-wrap:wrap}
+.eopt .span{font-size:11.5px;color:var(--fg-mute);font-weight:500}
+.heat{font-size:10px;font-weight:750;border-radius:var(--rp);padding:1px 8px;letter-spacing:.3px}
+.heat.厚{background:var(--gold-bg);color:var(--gold-ink);border:1px solid var(--gold-bd)}
+.heat.中{background:var(--blue-bg);color:var(--blue-ink);border:1px solid var(--blue-bd)}
+.heat.薄{background:var(--sunk2);color:var(--fg-mute);border:1px solid var(--line-hard)}
+.eopt .why{margin-top:9px;background:transparent;border:none;border-left:2px solid var(--line-hard);
+  border-radius:0;padding:0 0 0 11px;font-size:12.5px;color:var(--fg-dim);line-height:1.7}
+.eopt .why b{color:var(--fg)}
+.eopt .fromrow{display:flex;gap:5px;flex-wrap:wrap;align-items:center;margin-top:10px}
+.eopt .fromrow .lb{font-size:10.5px;color:var(--fg-mute);font-weight:640}
+.eopt .est{position:absolute;right:16px;bottom:14px;font-size:11px;color:var(--fg-mute)}
+.picked{margin-top:14px;background:var(--sunk);border:1px solid var(--line);border-radius:var(--r4);padding:13px 16px}
+.picked h5{font-size:10.5px;letter-spacing:1.2px;color:var(--fg-mute);font-weight:800}
+.picked .bl{font-size:13.5px;line-height:1.85;color:var(--fg-dim);margin-top:9px}
+.picked .note{font-size:11.5px;color:var(--fg-mute);margin-top:9px;padding-top:9px;
+  border-top:1px dashed var(--line-hard);line-height:1.65}
+.blk{margin-top:26px}
+.blab{display:flex;align-items:center;gap:9px;font-size:11px;letter-spacing:1.2px;
+  color:var(--fg-mute);font-weight:750;margin-bottom:10px}
+.blab i{font-style:normal;font-weight:600;letter-spacing:.3px;opacity:.75}
+.chips{display:flex;gap:8px;flex-wrap:wrap}
+.chip{border:1px solid var(--line-hard);background:var(--card);border-radius:var(--rp);
+  padding:7px 15px;font-size:13.5px;color:var(--fg-dim);transition:.15s}
+.chip:hover{border-color:var(--fg-mute);color:var(--fg)}
+.chip.on{background:var(--ink);border-color:var(--ink);color:var(--on-ink);font-weight:600}
+.ta{width:100%;min-height:112px;resize:vertical;background:var(--card);border:1px solid var(--line-hard);
+  border-radius:var(--r4);padding:15px 17px;font-size:14.5px;line-height:1.85;color:var(--fg)}
+.ta:focus{outline:none;border-color:var(--blue);box-shadow:0 0 0 3px var(--blue-bg)}
+.hint{font-size:12px;color:var(--fg-mute);margin-top:8px;line-height:1.6}
+.crumbgrid{display:grid;grid-template-columns:1fr 1fr;gap:8px}
+.cr{display:flex;align-items:flex-start;gap:10px;background:var(--card);border:1px solid var(--line);
+  border-radius:var(--r3);padding:10px 12px;text-align:left}
+.cr:hover{border-color:var(--blue-bd)}
+.cr .ic{width:22px;height:22px;flex:none;border-radius:var(--r2);background:var(--blue-bg);color:var(--blue);
+  display:grid;place-items:center;font-size:11px}
+.cr .nm{font-size:12.5px;font-weight:640;color:var(--fg-dim);overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.cr .tx{font-size:11.5px;color:var(--fg-mute);line-height:1.5;margin-top:3px;
+  display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden}
+.cr .ck{margin-left:auto;flex:none;width:16px;height:16px;border-radius:var(--r2);background:var(--gold);
+  color:var(--on-gold);display:grid;place-items:center;font-size:10px;font-weight:800}
+.modes{display:grid;grid-template-columns:1fr 1fr;gap:10px}
+.mode{text-align:left;background:var(--card);border:1px solid var(--line-hard);border-radius:var(--r4);padding:14px 16px}
+.mode h4{font-size:14.5px;font-weight:640;display:flex;align-items:center;gap:8px}
+.mode h4 span{font-size:10px;font-weight:750;letter-spacing:.6px;border-radius:var(--rp);padding:1px 7px;
+  background:var(--gold-bg);color:var(--gold-ink);border:1px solid var(--gold-bd)}
+.mode p{font-size:12.5px;color:var(--fg-mute);line-height:1.65;margin-top:6px}
+.mode.on{border-color:var(--ink);box-shadow:0 0 0 2px var(--sunk2)}
+.mode.off{opacity:.5;cursor:not-allowed}
+.mode.off h4 span{background:var(--sunk2);color:var(--fg-mute);border-color:var(--line-hard)}
+.expect{margin-top:28px;background:var(--card);border:1px solid var(--line-hard);border-radius:var(--r4);overflow:hidden}
+.expect .eh{padding:13px 20px;border-bottom:1px solid var(--line);background:var(--sunk);
+  font-size:11px;letter-spacing:1.2px;font-weight:750;color:var(--fg-mute);display:flex;align-items:center;gap:9px}
+.expect .eh em{margin-left:auto;font-style:normal;letter-spacing:0;font-weight:600;font-size:12px;color:var(--fg-dim)}
+.esteps{display:grid;grid-template-columns:repeat(4,1fr)}
+.es{padding:17px 18px;border-right:1px solid var(--line)}
+.es:last-child{border-right:none}
+.es .i{width:24px;height:24px;border-radius:var(--r2);background:var(--gold-bg);color:var(--gold-ink);
+  display:grid;place-items:center;font-size:11px;font-weight:750}
+.es h5{font-size:14px;font-weight:640;margin-top:9px}
+.es p{font-size:12.2px;color:var(--fg-mute);line-height:1.65;margin-top:5px}
+.ep{padding:15px 20px;border-top:1px dashed var(--line-hard);background:var(--sunk)}
+.ep ul{list-style:none;display:grid;gap:8px}
+.ep li{font-size:13px;color:var(--fg-dim);display:flex;gap:9px;line-height:1.6}
+.ep li i{font-style:normal;color:var(--gold);font-weight:800;flex:none}
+.ep li b{color:var(--fg)}
+.gostrip{display:flex;align-items:center;gap:14px;margin-top:26px;flex-wrap:wrap}
+.gostrip .go{background:var(--ink);color:var(--on-ink);border-radius:var(--r3);padding:12px 24px;font-size:15px;font-weight:650}
+.gostrip .go:hover{filter:brightness(1.1)}
+.gostrip small{color:var(--fg-mute);font-size:12px;line-height:1.55}
+
+/* ═══════════ ③ 工作台 · 四面板系统 ═══════════
+   crumbs — Grill — Dynamic Resume — 收获账本
+   每个面板三态：min（收到边上的竖条）/ norm / max（顶开其他）。
+   列宽由 JS 拼成 grid-template-columns，所以增删面板不用改 CSS。 */
+.wb{flex:1;min-height:0;display:flex;flex-direction:column}
+
+.panelbar{flex:none;display:flex;align-items:center;gap:6px;padding:6px 12px;
+  background:var(--sunk);border-bottom:1px solid var(--line);overflow:hidden;
+  transition:padding .2s,max-height .2s;max-height:44px}
+.panelbar.hid{max-height:0;padding-top:0;padding-bottom:0;border-bottom-color:transparent}
+.pbLabel{font-size:10px;letter-spacing:1.2px;font-weight:800;color:var(--fg-mute);margin-right:2px}
+.pchip{display:flex;align-items:center;gap:6px;border:1px solid var(--line-hard);background:var(--card);
+  border-radius:var(--r3);padding:4px 10px;font-size:12px;color:var(--fg-mute);transition:.15s;white-space:nowrap}
+.pchip:hover{color:var(--fg);border-color:var(--fg-mute)}
+.pchip .sq{width:8px;height:8px;border-radius:var(--r1);background:var(--line-hard);flex:none}
+.pchip.on{color:var(--fg);border-color:var(--fg-mute);font-weight:600}
+.pchip.on .sq{background:var(--gold)}
+.pchip.big .sq{background:var(--gold);box-shadow:0 0 0 3px var(--gold-bg)}
+.pchip .k{font-size:10px;color:var(--fg-mute);font-family:var(--mono)}
+.pbRight{margin-left:auto;display:flex;gap:6px;align-items:center}
+.barToggle{position:absolute;left:50%;transform:translateX(-50%);z-index:6;
+  background:var(--card);border:1px solid var(--line);border-top:none;border-radius:0 0 var(--r2) var(--r2);
+  padding:1px 14px 2px;font-size:9px;color:var(--fg-mute);line-height:1.4}
+.barToggle:hover{color:var(--fg);background:var(--sunk)}
+.panelsWrap{flex:1;min-height:0;position:relative}
+.panels{position:absolute;inset:0;display:grid}
+/* 不给 grid-template-columns 加 transition：Safari / Firefox 根本不动画它，
+   Chromium 里又会让「面板到底多宽」在动画期间无法被读取。改成内容淡入，
+   宽度直接吸附——跨浏览器一致，也可测。 */
+.panel>.panel-h,.panel>.panel-b,.panel>.panel-f,.panel>.composer,.panel>.out-h{
+  animation:panelIn .22s ease-out both}
+@keyframes panelIn{from{opacity:0}}
+
+.panel{display:flex;flex-direction:column;min-height:0;min-width:0;overflow:hidden;
+  border-right:1px solid var(--line);background:var(--card)}
+.panel:last-child{border-right:none}
+.panel.tone{background:var(--sunk)}
+.panel-h{flex:none;height:38px;display:flex;align-items:center;gap:7px;padding:0 8px 0 12px;
+  border-bottom:1px solid var(--line);background:var(--card)}
+.panel.tone .panel-h{background:var(--sunk)}
+.panel-h h3{font-size:10.5px;letter-spacing:1.2px;color:var(--fg-mute);font-weight:800;
+  white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.panel-h .pc{font-size:10px;font-weight:750;border-radius:var(--rp);padding:0 6px;flex:none;
+  background:var(--sunk2);color:var(--fg-dim)}
+.panel-h .pc.hot{background:var(--gold-bg);color:var(--gold-ink);border:1px solid var(--gold-bd)}
+.panel-h .pc.pulse{animation:cpulse .9s ease-out}
+@keyframes cpulse{0%{background:var(--gold);color:var(--on-gold);transform:scale(1.25)}100%{transform:scale(1)}}
+.panel-h .pa{margin-left:auto;display:flex;gap:1px;flex:none}
+.picon{width:23px;height:23px;border-radius:var(--r2);display:grid;place-items:center;
+  font-size:11px;color:var(--fg-mute);line-height:1}
+.picon:hover{background:var(--sunk2);color:var(--fg)}
+.panel-b{flex:1;min-height:0;overflow:auto}
+.panel-f{flex:none;border-top:1px solid var(--line);padding:8px 12px;display:flex;gap:7px;align-items:center}
+.panel-f small{color:var(--fg-mute);font-size:10.5px;margin-left:auto;text-align:right;line-height:1.4}
+
+/* 收起态：一条竖条 */
+.panel-min{display:none;flex:1;flex-direction:column;align-items:center;gap:9px;padding:11px 0;width:100%}
+.panel.min{background:var(--sunk)}
+.panel.min>.panel-h,.panel.min>.panel-b,.panel.min>.panel-f{display:none}
+.panel.min>.panel-min{display:flex}
+.panel-min .ic0{width:24px;height:24px;border-radius:var(--r2);display:grid;place-items:center;
+  font-size:11px;background:var(--sunk2);color:var(--fg-mute);flex:none}
+.panel-min .lbl{writing-mode:vertical-rl;text-orientation:mixed;font-size:11.5px;letter-spacing:2px;
+  color:var(--fg-mute);font-weight:700}
+.panel-min .n0{font-size:10px;font-weight:750;color:var(--gold-ink);background:var(--gold-bg);
+  border:1px solid var(--gold-bd);border-radius:var(--rp);padding:0 5px}
+.panel-min:hover .lbl,.panel-min:hover .ic0{color:var(--fg)}
+
+/* ── 面板 1：Crumbs 原料（可拖进拖出） ── */
+.crumbsec{padding:10px 11px 4px}
+.csec-h{display:flex;align-items:center;gap:7px;font-size:10px;letter-spacing:1px;
+  font-weight:800;color:var(--fg-mute);margin-bottom:7px}
+.csec-h .n{font-size:10px;background:var(--sunk2);border-radius:var(--rp);padding:0 6px;font-weight:750}
+.csec-h .n.on{background:var(--blue-bg);color:var(--blue-ink);border:1px solid var(--blue-bd)}
+.cdrop{border:1px dashed transparent;border-radius:var(--r3);padding:2px;transition:.15s;min-height:34px}
+body.cdrag .cdrop{border-color:var(--line-hard);background:var(--sunk)}
+body.cdrag .cdrop.over{border-color:var(--blue);background:var(--blue-bg)}
+.src{width:100%;text-align:left;background:var(--card);border:1px solid var(--line);
+  border-radius:var(--r3);padding:8px 10px;margin-bottom:5px;transition:.18s;position:relative;cursor:grab}
+.src:active{cursor:grabbing}
+.src:hover,.src.hit{border-color:var(--blue-bd)}
+.src.aim{border-color:var(--blue);box-shadow:0 0 0 3px var(--blue-bg)}
+.src.off{background:transparent;border-style:dashed;opacity:.72}
+.src.off:hover{opacity:1}
+.src.drag{opacity:.4}
+.src .top2{display:flex;align-items:center;gap:7px}
+.src .ic{width:19px;height:19px;flex:none;border-radius:var(--r2);background:var(--blue-bg);color:var(--blue);
+  display:grid;place-items:center;font-size:10px}
+.src.off .ic{background:var(--sunk2);color:var(--fg-mute)}
+.src .nm{font-size:11.5px;font-weight:640;color:var(--fg-dim);overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.src .n{margin-left:auto;flex:none;font-size:10px;font-weight:750;color:var(--blue);
+  background:var(--blue-bg);border-radius:var(--rp);padding:1px 6px;opacity:0;transition:.2s}
+.src.hit .n{opacity:1}
+.src .tx{font-size:11px;color:var(--fg-mute);line-height:1.5;margin-top:4px;
+  display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden}
+.src .pm2{position:absolute;right:6px;bottom:6px;width:19px;height:19px;border-radius:var(--r2);
+  display:grid;place-items:center;font-size:12px;color:var(--fg-mute);background:var(--sunk);
+  border:1px solid var(--line);opacity:0;transition:.15s}
+.src:hover .pm2{opacity:1}
+.src .pm2:hover{color:var(--fg);border-color:var(--fg-mute)}
+.railnote{margin:6px 12px 16px;font-size:10.5px;color:var(--fg-mute);line-height:1.65;
+  border-top:1px dashed var(--line-hard);padding-top:9px}
+
+
+.ledger{padding:10px 12px 20px}
+.lgKey{display:flex;gap:2px;background:var(--sunk);border:1px solid var(--line);border-radius:var(--r3);padding:2px}
+.lgKey button{padding:3px 9px;border-radius:var(--r2);font-size:11.5px;color:var(--fg-mute);font-weight:600}
+.lgKey button.on{background:var(--card);color:var(--fg)}
+.lgHint{font-size:10.5px;color:var(--fg-mute);line-height:1.6;padding:0 2px 10px}
+.lgroup{margin-bottom:8px;background:var(--card);border:1px solid var(--line);border-radius:var(--r3);overflow:hidden}
+.lgroup.empty{background:transparent;border-style:dashed;border-color:var(--line-hard)}
+.lg-h{width:100%;display:flex;align-items:center;gap:8px;padding:8px 11px;text-align:left}
+.lg-h:hover{background:var(--sunk)}
+.lgroup.empty .lg-h:hover{background:transparent}
+.lg-h .k{font-size:12px;font-weight:640;color:var(--fg-dim)}
+.lgroup.empty .lg-h .k{color:var(--fg-mute)}
+.lg-h .b{margin-left:auto;font-size:10.5px;font-weight:750;border-radius:var(--rp);padding:1px 7px;
+  background:var(--sunk2);color:var(--fg-mute);transition:.2s}
+.lg-h .b.has{background:var(--gold-bg);color:var(--gold-ink);border:1px solid var(--gold-bd)}
+.lg-h .caret{font-size:9px;color:var(--fg-mute);transition:.2s}
+.lgroup.open .caret{transform:rotate(90deg)}
+.lg-b{display:none;padding:0 10px 9px}
+.lgroup.open .lg-b{display:block}
+.item{border-top:1px solid var(--line);padding:8px 2px 7px;position:relative}
+.item .tx{font-size:11.8px;line-height:1.55;color:var(--fg)}
+.tagrow{display:flex;gap:4px;flex-wrap:wrap;margin-top:6px;align-items:center}
+.tagrow>*{flex:0 0 auto}
+.tg{font-size:10px;font-weight:640;border-radius:var(--r2);padding:1px 6px;line-height:1.55;
+  background:var(--sunk);border:1px solid var(--line);color:var(--fg-mute);white-space:nowrap}
+.tg.dim{background:var(--gold-bg);border-color:var(--gold-bd);color:var(--gold-ink)}
+.tg.src{background:var(--blue-bg);border-color:var(--blue-bd);color:var(--blue-ink)}
+.tg.btn{cursor:pointer}
+.tg.btn:hover{border-color:var(--fg-mute);color:var(--fg-dim)}
+.meta{display:flex;align-items:center;gap:7px;margin-top:5px;font-size:10.3px;color:var(--fg-mute);flex-wrap:wrap}
+.meta>*{flex:0 0 auto}
+.meta .s{opacity:.45}
+.meta button{color:var(--fg-mute);border-bottom:1px solid transparent;line-height:1.4}
+.meta button:hover{color:var(--fg-dim);border-bottom-color:var(--line-hard)}
+.meta button.undo:hover{color:var(--red)}
+.meta button.add{color:var(--gold-ink);font-weight:700}
+.meta button.add:hover{border-bottom-color:var(--gold-bd)}
+.ledgernote{margin:2px 12px 18px;font-size:10.8px;color:var(--fg-mute);line-height:1.7;
+  border-top:1px dashed var(--line-hard);padding-top:10px}
+.ledgernote b{color:var(--fg-dim)}
+
+/* 候补条目：可拖 */
+.item.cand{background:var(--gold-bg);border-radius:var(--r3);padding:8px 8px 7px;margin-top:6px;
+  border:1px dashed var(--gold-bd);border-top:1px dashed var(--gold-bd);cursor:grab}
+.item.cand:active{cursor:grabbing}
+.item.cand .grip2{position:absolute;right:7px;top:7px;font-size:10px;color:var(--gold-ink);opacity:.75;letter-spacing:-1px}
+.item.cand.drag{opacity:.4}
+body.dragging .dz{display:flex}
+.dz{display:none;align-items:center;justify-content:center;gap:9px;margin:14px 0 4px;padding:16px 14px;
+  border:2px dashed var(--gold-bd);border-radius:var(--r4);background:var(--gold-bg);
+  color:var(--gold-ink);font-size:12.5px;font-weight:640;text-align:center;line-height:1.6}
+.dz.over{border-style:solid;background:var(--gold-fill);transform:scale(1.01)}
+.bul.promoted .pbadge{font-size:9.5px;font-weight:750;border-radius:var(--r2);padding:1px 5px;margin-left:5px;
+  background:var(--gold-bg);border:1px solid var(--gold-bd);color:var(--gold-ink);vertical-align:2px}
+
+.mid-b{background:var(--bg)}
+.mid-h h3{font-size:10.5px;letter-spacing:1.3px;color:var(--fg-mute);font-weight:750}
+.rounds{margin-left:auto;font-size:11.5px;color:var(--fg-mute)}
+.mid-b{padding:16px 18px 22px}
+.past{border-left:2px solid var(--line-hard);padding:0 0 0 12px;margin-bottom:9px;transition:.2s;position:relative}
+.past:hover{border-color:var(--gold)}
+.past .pq{font-size:12.3px;color:var(--fg-dim);font-weight:560;line-height:1.55}
+.past .pa{font-size:11.6px;color:var(--fg-mute);margin-top:2px;
+  display:-webkit-box;-webkit-line-clamp:1;-webkit-box-orient:vertical;overflow:hidden}
+.past .pu{position:absolute;right:0;top:0;font-size:10.5px;color:var(--fg-mute);
+  border:1px solid var(--line-hard);border-radius:var(--r2);padding:1px 7px;background:var(--card);opacity:0;transition:.15s}
+.past:hover .pu{opacity:1}
+.past .pu:hover{border-color:var(--red-bd);color:var(--red);background:var(--red-bg)}
+.past.dead{border-color:var(--red-bd)}
+.past.dead .pq{text-decoration:line-through;color:var(--fg-mute)}
+.qcard{background:var(--card);border:1px solid var(--line-hard);border-radius:var(--r4);
+  box-shadow:var(--shadow-sm);overflow:hidden;margin-top:12px;
+  animation:rise .38s cubic-bezier(.2,.85,.3,1) both}
+@keyframes rise{from{opacity:0;transform:translateY(12px)}}
+.qc-h{display:flex;align-items:center;gap:9px;padding:9px 15px;border-bottom:1px solid var(--line);
+  background:var(--sunk);font-size:10.5px;letter-spacing:.5px;color:var(--fg-mute);font-weight:640}
+.dimtag{background:var(--card);border:1px solid var(--line-hard);border-radius:var(--r2);padding:1px 7px;color:var(--fg-dim)}
+.qc-b{padding:15px 17px}
+.q{font-family:var(--display);font-size:17px;line-height:1.62;font-weight:580;letter-spacing:-.15px}
+.grip{margin-top:12px;display:flex;align-items:center;gap:9px;flex-wrap:wrap;
+  border:1px solid var(--line);background:var(--sunk);border-radius:var(--r3);padding:8px 12px}
+.grip .lv{font-size:10.5px;font-weight:750;letter-spacing:.6px;border-radius:var(--r2);padding:2px 8px;
+  background:var(--red-bg);color:var(--red-ink);border:1px solid var(--red-bd)}
+.grip .lv.mid{background:var(--gold-bg);color:var(--gold-ink);border-color:var(--gold-bd)}
+.grip .ev{font-size:12px;color:var(--fg-dim);line-height:1.55}
+.grip .ev b{color:var(--fg)}
+.grip .ref{margin-left:auto;font-size:11px;color:var(--blue);border:1px solid var(--blue-bd);
+  background:var(--blue-bg);border-radius:var(--r2);padding:2px 8px;white-space:nowrap}
+.why{margin-top:11px;background:var(--gold-bg);border-left:3px solid var(--gold);
+  border-radius:0 var(--r2) var(--r2) 0;padding:10px 13px;font-size:12.7px;color:var(--gold-ink);line-height:1.68}
+.why b{display:block;font-size:9.5px;letter-spacing:1.2px;margin-bottom:3px;color:var(--gold);font-weight:800}
+.guess{margin-top:11px}
+.guess b{display:block;font-size:9.5px;letter-spacing:1.2px;color:var(--fg-mute);margin-bottom:5px;font-weight:800}
+.gbox{border:1px dashed var(--line-hard);border-radius:var(--r3);padding:10px 13px;font-size:13.3px;
+  color:var(--fg-dim);background:var(--sunk);line-height:1.62}
+.acts{display:flex;flex-wrap:wrap;gap:7px;padding:0 17px 15px}
+.act{border:1px solid var(--line-hard);border-radius:var(--r3);padding:7px 13px;font-size:13px;
+  color:var(--fg-dim);transition:.15s;background:var(--card)}
+.act:hover{border-color:var(--fg-mute);color:var(--fg)}
+.act.go{background:var(--ink);border-color:var(--ink);color:var(--on-ink);font-weight:600}
+.act.bad:hover{border-color:var(--red);color:var(--red);background:var(--red-bg)}
+.ublock{margin-top:11px;background:var(--card);border:1px solid var(--line-hard);border-radius:var(--r4);
+  padding:11px 14px;position:relative;animation:rise .35s cubic-bezier(.2,.85,.3,1) both}
+.ublock .uh{display:flex;align-items:center;gap:7px;font-size:9.5px;letter-spacing:1.2px;
+  color:var(--fg-mute);font-weight:800;margin-bottom:5px}
+.ublock .uh .av{width:17px;height:17px;border-radius:50%;background:var(--ink);color:var(--on-ink);
+  display:grid;place-items:center;font-size:9px;font-weight:700;letter-spacing:0}
+.ublock .ut{font-size:13.4px;color:var(--fg);line-height:1.72}
+.ublock .uu{position:absolute;right:10px;top:9px;font-size:10.5px;color:var(--fg-mute);
+  border:1px solid var(--line-hard);border-radius:var(--r2);padding:1px 7px}
+.ublock .uu:hover{border-color:var(--red-bd);color:var(--red);background:var(--red-bg)}
+.harv{margin-top:9px;padding-top:9px;border-top:1px dashed var(--line-hard);display:flex;gap:6px;flex-wrap:wrap;align-items:center}
+.harv .hl{font-size:10.5px;color:var(--fg-mute);font-weight:640}
+.finish{text-align:center;padding:24px 18px;background:var(--card);border:1px solid var(--line-hard);
+  border-radius:var(--r4);margin-top:12px}
+.finish h4{font-size:16px;font-weight:650;line-height:1.5}
+.finish p{font-size:12.5px;color:var(--fg-mute);margin-top:6px;line-height:1.65}
+
+.composer{flex:none;border-top:1px solid var(--line);background:var(--card);padding:10px 20px 12px}
+.cp-tip{font-size:11px;color:var(--fg-mute);margin-bottom:7px;display:flex;align-items:center;gap:7px}
+.cp-tip .d{width:5px;height:5px;border-radius:50%;background:var(--line-hard)}
+.cp-tip.hot{color:var(--gold-ink)}
+.cp-tip.hot .d{background:var(--gold);animation:blink 1.2s infinite}
+@keyframes blink{50%{opacity:.25}}
+.cp-box{display:flex;gap:9px;align-items:flex-end;border:1px solid var(--line-hard);border-radius:var(--r4);
+  padding:9px 10px 9px 13px;background:var(--card);transition:.18s}
+.cp-box.focus{border-color:var(--fg-mute);box-shadow:0 0 0 3px var(--sunk2)}
+.cp-box.typing{border-color:var(--gold);box-shadow:0 0 0 3px var(--gold-bg)}
+.cp-in{flex:1;min-height:22px;max-height:120px;overflow:auto;font-size:13.6px;line-height:1.7;
+  color:var(--fg);outline:none;word-break:break-word}
+.cp-in:focus,.cp-in:focus-visible{outline:none}
+.cp-in:empty::before{content:attr(data-ph);color:var(--fg-mute)}
+.cp-in .car{display:inline-block;width:1.5px;height:1.05em;background:var(--gold);
+  vertical-align:-2px;animation:blink .85s steps(1) infinite}
+.cp-send{flex:none;border-radius:var(--r3);padding:7px 14px;font-size:13px;font-weight:640;
+  background:var(--sunk2);color:var(--fg-mute);transition:.18s}
+.cp-send.ready{background:var(--ink);color:var(--on-ink)}
+.cp-send.pulse{animation:spulse 1s ease-in-out 2}
+@keyframes spulse{50%{box-shadow:0 0 0 6px var(--gold-bg)}}
+
+.out-h{flex:none;padding:10px 18px 11px;border-bottom:1px solid var(--line);position:relative}
+.out-top{display:flex;align-items:center;gap:10px}
+.segd{display:flex;background:var(--sunk);border:1px solid var(--line);border-radius:var(--r3);padding:2px}
+.segd button{padding:5px 12px;border-radius:var(--r2);font-size:12.5px;color:var(--fg-mute);font-weight:600}
+.segd button.on{background:var(--card);color:var(--fg)}
+.live{margin-left:auto;display:flex;align-items:center;gap:5px;font-size:10.5px;color:var(--red);font-weight:750;letter-spacing:.5px}
+.live i{width:6px;height:6px;border-radius:50%;background:var(--red);animation:blink 1.4s infinite}
+.counts{margin-top:11px}
+.cbar{display:flex;height:7px;border-radius:var(--r2);overflow:hidden;background:var(--line)}
+.cbar i{display:block;height:100%;transition:width .7s cubic-bezier(.2,.8,.3,1)}
+.cbar .s{background:var(--blue)} .cbar .g{background:var(--gold)} .cbar .f{background:var(--sunk2)}
+.clegend{display:flex;gap:13px;margin-top:8px;flex-wrap:wrap;align-items:center}
+.cl{display:flex;align-items:center;gap:6px;font-size:11.5px;color:var(--fg-dim);
+  border-radius:var(--r2);padding:1px 5px;margin-left:-5px;transition:.15s}
+.cl:hover{background:var(--sunk)}
+.cl .sw{width:10px;height:10px;border-radius:var(--r1);flex:none}
+.cl .sw.s{background:var(--blue)} .cl .sw.g{background:var(--gold)}
+.cl .sw.i{background:transparent;border:1.5px dashed var(--red)}
+.cl .sw.f{background:var(--sunk2);border:1px solid var(--line-hard)}
+.cl b{color:var(--fg)}
+.cl.hot{color:var(--gold-ink);font-weight:640}
+.denom{margin-left:auto;font-size:10.8px;color:var(--fg-mute);border-bottom:1px dotted var(--line-hard);cursor:help}
+.out-b{padding:18px 20px 30px}
+.view{display:none}.view.on{display:block}
+.sheet h4{font-size:10.5px;letter-spacing:1.4px;color:var(--fg-mute);font-weight:800;
+  padding-bottom:8px;border-bottom:1px solid var(--line);margin-bottom:13px}
+.sheet h4:not(:first-child){margin-top:24px}
+.bul{display:flex;gap:11px;margin-bottom:12px;font-size:13.8px;line-height:1.78;transition:.3s;border-radius:var(--r2)}
+.bul .bd{color:var(--bullet);flex:none}
+.bul.thin{opacity:.5}
+.bul.flash{animation:flash 1.1s ease-out}
+@keyframes flash{0%{background:var(--gold-bg)}100%{background:transparent}}
+.intro{font-size:14.2px;line-height:1.95}
+.sg{border-radius:var(--r2);padding:1px 2px;transition:.25s}
+.sg.source{background:var(--blue-bg);box-shadow:inset 0 -1px 0 var(--blue-bd);cursor:help}
+.sg.grill{background:var(--gold-fill);box-shadow:inset 0 -2px 0 var(--gold);font-weight:520;cursor:help}
+.sg.inferred{border:1px dashed var(--red-bd);background:var(--red-bg);cursor:help}
+/* 材料被移出本场 → 这句话不再算「有出处」，当场降级 */
+.sg.source.orphan{background:var(--red-bg);box-shadow:none;border:1px dashed var(--red-bd);opacity:.85}
+.sg.ghost{background:repeating-linear-gradient(105deg,var(--ghost-a),var(--ghost-a) 6px,var(--ghost-b) 6px,var(--ghost-b) 12px);
+  color:transparent;border-radius:var(--r2);box-shadow:none;user-select:none;cursor:default}
+.sg.born{animation:born .8s cubic-bezier(.2,.9,.3,1) both}
+@keyframes born{0%{background:var(--gold-flash);transform:scale(1.02)}100%{background:var(--gold-fill);transform:scale(1)}}
+.badge{display:inline-block;font-size:9.5px;font-weight:750;vertical-align:2px;margin-left:3px;
+  padding:0 4px;border-radius:var(--r1);background:var(--red);color:#fff}
+.rowacts{display:flex;gap:7px;margin-top:7px}
+.mini{font-size:11.5px;padding:3px 9px;border-radius:var(--r2);border:1px solid var(--line-hard);color:var(--fg-mute)}
+.mini:hover{background:var(--sunk);color:var(--fg)}
+.mini.del:hover{border-color:var(--red);color:var(--red);background:var(--red-bg)}
+
+
+/* ═══════════ ④ 成果 ═══════════ */
+.rv{flex:1;min-height:0;display:flex;flex-direction:column}
+.rv-h{flex:none;padding:22px 30px 16px;border-bottom:1px solid var(--line);background:var(--card)}
+.rv-h h2{font-family:var(--display);font-size:25px;line-height:1.42;font-weight:var(--h-weight);letter-spacing:var(--h-track);max-width:56em}
+.rv-h h2 em{font-style:normal;background:linear-gradient(transparent 60%,var(--gold-fill) 60%);padding:0 3px}
+.legend{display:flex;gap:9px;margin-top:15px;flex-wrap:wrap;align-items:center}
+.lg2{display:flex;align-items:center;gap:7px;font-size:12px;color:var(--fg-dim);
+  border:1px solid var(--line);border-radius:var(--rp);padding:5px 12px;background:var(--bg)}
+.lg2 .sw{width:11px;height:11px;border-radius:var(--r1);flex:none}
+.lg2 .sw.s{background:var(--blue)}.lg2 .sw.g{background:var(--gold)}
+.lg2 .sw.i{background:transparent;border:1.5px dashed var(--red)}
+.lg2 b{color:var(--fg)}
+.lg2.gold{background:var(--gold-bg);border-color:var(--gold-bd);color:var(--gold-ink)}
+.rv-b{flex:1;min-height:0;overflow:auto;padding:22px 30px 40px}
+.panes{display:grid;grid-template-columns:.72fr 1fr;gap:20px;align-items:start;max-width:1320px;margin:0 auto}
+.pn{background:var(--card);border:1px solid var(--line);border-radius:var(--r5);padding:22px 24px}
+.pn.before{background:var(--sunk)}
+.pn-t{display:flex;align-items:center;gap:9px;font-size:10.5px;letter-spacing:1.3px;
+  color:var(--fg-mute);font-weight:800;margin-bottom:14px}
+.pn-t span{border-radius:var(--r2);padding:2px 8px;background:var(--sunk2);color:var(--fg-dim);letter-spacing:.8px}
+.pn-t span.aft{background:var(--gold);color:var(--on-gold)}
+.old{font-size:14.5px;line-height:2;color:var(--fg-dim)}
+.old-note{margin-top:16px;padding-top:14px;border-top:1px dashed var(--line-hard);
+  font-size:12.3px;color:var(--fg-mute);line-height:1.75}
+.old-note b{color:var(--fg-dim)}
+.bstat{display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-top:16px}
+.bs{background:var(--card);border:1px solid var(--line);border-radius:var(--r3);padding:11px 13px}
+.bs b{font-size:21px;font-weight:700;display:block;letter-spacing:-.6px}
+.bs span{font-size:11px;color:var(--fg-mute);line-height:1.45;display:block;margin-top:1px}
+.exports{display:flex;gap:8px;flex-wrap:wrap;margin-top:20px;padding-top:16px;border-top:1px solid var(--line);align-items:center}
+.exports small{color:var(--fg-mute);font-size:11px;margin-left:auto}
+.harvestboard{max-width:1320px;margin:22px auto 0;background:var(--card);border:1px solid var(--line);border-radius:var(--r5);overflow:hidden}
+.hb-h{padding:14px 22px;border-bottom:1px solid var(--line);background:var(--sunk);display:flex;align-items:center;gap:10px}
+.hb-h h3{font-size:11px;letter-spacing:1.3px;color:var(--fg-mute);font-weight:800}
+.hb-h small{margin-left:auto;font-size:11.5px;color:var(--fg-mute)}
+.hb-b{padding:16px 22px 20px;display:grid;grid-template-columns:repeat(3,1fr);gap:14px}
+.hcol h5{font-size:12px;font-weight:700;color:var(--fg-dim);display:flex;align-items:center;gap:7px;
+  padding-bottom:7px;border-bottom:1px solid var(--line)}
+.hcol h5 .b{margin-left:auto;font-size:10.5px;font-weight:750;border-radius:var(--rp);padding:1px 7px;
+  background:var(--gold-bg);color:var(--gold-ink);border:1px solid var(--gold-bd)}
+.hcol h5 .b.zero{background:var(--sunk2);color:var(--fg-mute);border-color:var(--line-hard)}
+.hcol ul{list-style:none;margin-top:9px;display:grid;gap:8px}
+.hcol li{font-size:12.2px;line-height:1.6;color:var(--fg-dim);display:flex;gap:8px}
+.hcol li i{font-style:normal;color:var(--gold);flex:none}
+.hcol .none{font-size:11.5px;color:var(--fg-mute);font-style:italic}
+/* 成果页的收尾：明确把人送回 dashboard */
+.landing-strip{max-width:1320px;margin:20px auto 0;background:var(--card);border:1px solid var(--line-hard);
+  border-radius:var(--r5);padding:20px 24px;display:flex;align-items:center;gap:18px;flex-wrap:wrap}
+.landing-strip .m{flex:1;min-width:260px}
+.landing-strip h4{font-size:16px;font-weight:660}
+.landing-strip p{font-size:12.8px;color:var(--fg-mute);margin-top:6px;line-height:1.7}
+.landing-strip .a{display:flex;gap:9px;flex-wrap:wrap}
+
+
+/* ═══════════ Target（JD）· 贯穿投喂 / 工作台 / 成果 ═══════════ */
+/* 常驻 Target 条：这一场是为谁做的，永远可见 */
+.tbar{flex:none;display:flex;align-items:center;gap:12px;padding:7px 16px;
+  background:var(--card);border-bottom:1px solid var(--line);font-size:12.5px}
+.tbar .lb{font-size:9.5px;letter-spacing:1.2px;font-weight:800;color:var(--fg-mute);flex:none}
+.tbar .tt{font-weight:640;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.tbar .tt small{color:var(--fg-mute);font-weight:500;margin-left:5px}
+.tbar .score{display:flex;gap:8px;align-items:center;flex:none;margin-left:auto}
+.tbar .none2{color:var(--fg-mute)}
+.rstat{display:inline-flex;align-items:center;gap:5px;font-size:11.5px;color:var(--fg-dim);
+  border:1px solid var(--line);border-radius:var(--rp);padding:2px 9px;background:var(--sunk);white-space:nowrap}
+.rstat b{font-variant-numeric:tabular-nums;color:var(--fg)}
+.rstat .d{width:8px;height:8px;border-radius:50%;flex:none}
+.rstat.ok  .d{background:var(--blue)}   .rstat.ok{border-color:var(--blue-bd);background:var(--blue-bg);color:var(--blue-ink)}
+.rstat.weak .d{background:var(--gold)}  .rstat.weak{border-color:var(--gold-bd);background:var(--gold-bg);color:var(--gold-ink)}
+.rstat.none .d{background:var(--line-hard)}
+.rstat.gap  .d{background:var(--red)}   .rstat.gap{border-color:var(--red-bd);background:var(--red-bg);color:var(--red-ink)}
+.rstat.jump{cursor:pointer}
+.rstat.jump:hover{filter:brightness(.97);border-color:var(--fg-mute)}
+
+/* 要求清单 */
+.reqlist{padding:10px 12px 18px}
+.reqsec{margin-bottom:12px}
+.reqsec>h6{display:flex;align-items:center;gap:7px;font-size:10px;letter-spacing:1px;font-weight:800;
+  color:var(--fg-mute);margin-bottom:7px}
+.reqsec>h6 .ln{flex:1;height:1px;background:var(--line)}
+.req{background:var(--card);border:1px solid var(--line);border-left:3px solid var(--line-hard);
+  border-radius:var(--r3);padding:9px 11px;margin-bottom:6px;transition:.18s}
+.req.ok  {border-left-color:var(--blue)}
+.req.weak{border-left-color:var(--gold)}
+.req.none{border-left-color:var(--line-hard);border-style:dashed;background:transparent}
+.req.gap {border-left-color:var(--red);background:var(--red-bg);border-color:var(--red-bd)}
+.req.just{animation:reqFill 1.1s cubic-bezier(.2,.9,.3,1) both}
+@keyframes reqFill{0%{background:var(--gold-fill);transform:translateX(-4px)}100%{transform:none}}
+.req .rh{display:flex;align-items:flex-start;gap:7px}
+.req .mk{flex:none;width:15px;height:15px;border-radius:50%;display:grid;place-items:center;
+  font-size:9px;font-weight:800;margin-top:1px;border:1px solid var(--line-hard);color:var(--fg-mute)}
+.req.ok   .mk{background:var(--blue);border-color:var(--blue);color:#fff}
+.req.weak .mk{background:var(--gold);border-color:var(--gold);color:var(--on-gold)}
+.req.gap  .mk{background:var(--red);border-color:var(--red);color:#fff}
+.req .rt{font-size:12.2px;line-height:1.55;flex:1;min-width:0}
+.req .kd{flex:none;font-size:9.5px;font-weight:750;border-radius:var(--r2);padding:0 5px;
+  background:var(--sunk2);color:var(--fg-mute);margin-top:2px}
+.req .kd.hard{background:var(--ink);color:var(--on-ink)}
+.req .ev2{margin-top:6px;font-size:10.8px;color:var(--fg-mute);line-height:1.6;
+  padding-left:22px;display:flex;flex-wrap:wrap;gap:5px;align-items:center}
+.req .ev2 b{color:var(--fg-dim)}
+.req .ask{font-size:10.5px;color:var(--gold-ink);font-weight:700;border-bottom:1px solid var(--gold-bd)}
+.req .ask:hover{color:var(--gold)}
+.reqnote{font-size:10.8px;color:var(--fg-mute);line-height:1.7;padding:0 2px 10px}
+.reqnote b{color:var(--fg-dim)}
+.gapnote{background:var(--red-bg);border:1px solid var(--red-bd);border-radius:var(--r3);
+  padding:10px 12px;font-size:11.5px;color:var(--red-ink);line-height:1.7;margin-top:4px}
+.gapnote b{font-weight:750}
+
+/* 简历片段上的 JD 对齐标记（和三色出处正交的第二个轴） */
+.jdchip{display:inline-flex;align-items:center;gap:3px;font-size:9.5px;font-weight:700;
+  border:1px solid var(--blue-bd);background:var(--blue-bg);color:var(--blue-ink);
+  border-radius:var(--r2);padding:0 5px;margin-left:5px;vertical-align:2px;white-space:nowrap;cursor:help}
+.jdchip:hover{filter:brightness(.96)}
+.jdrow{display:flex;gap:4px;flex-wrap:wrap;margin-top:5px;padding-left:22px}
+
+/* 问题卡上的来源标记（JD 驱动 / 通用维度） */
+.qsrc{display:inline-flex;align-items:center;gap:5px;font-size:9.5px;font-weight:750;
+  letter-spacing:.4px;border-radius:var(--r2);padding:1px 7px}
+.qsrc.jd{background:var(--blue-bg);border:1px solid var(--blue-bd);color:var(--blue-ink)}
+.qsrc.general{background:var(--sunk2);border:1px solid var(--line-hard);color:var(--fg-mute)}
+.jdwhy{margin-top:10px;background:var(--blue-bg);border-left:3px solid var(--blue);
+  border-radius:0 var(--r2) var(--r2) 0;padding:9px 13px;font-size:12.5px;color:var(--blue-ink);line-height:1.65}
+.jdwhy b{color:var(--blue-ink)}
+.jdwhy .h6{display:block;font-size:9.5px;letter-spacing:1.2px;margin-bottom:3px;color:var(--blue);font-weight:800}
+.budget{display:flex;align-items:center;gap:8px;font-size:10.5px;color:var(--fg-mute);
+  padding:8px 2px 2px;flex-wrap:wrap}
+.budget .bseg{display:flex;gap:3px}
+.budget .bs2{width:16px;height:5px;border-radius:var(--r1);background:var(--sunk2)}
+.budget .bs2.jd{background:var(--blue)} .budget .bs2.gen{background:var(--gold)}
+.budget .bs2.pend{opacity:.35}
+
+/* 投喂页的 Target 选择 */
+.tgopts{display:grid;grid-template-columns:1fr 1fr 1fr;gap:9px}
+.tgopt{text-align:left;background:var(--card);border:1px solid var(--line-hard);border-radius:var(--r4);
+  padding:12px 14px;transition:.15s}
+.tgopt:hover{border-color:var(--fg-mute)}
+.tgopt.on{border-color:var(--ink);box-shadow:0 0 0 2px var(--sunk2)}
+.tgopt .tk{font-size:9.5px;font-weight:750;letter-spacing:.5px;border-radius:var(--rp);padding:1px 7px;
+  background:var(--blue-bg);border:1px solid var(--blue-bd);color:var(--blue-ink)}
+.tgopt .tk.none{background:var(--sunk2);border-color:var(--line-hard);color:var(--fg-mute)}
+.tgopt h5{font-size:13.5px;font-weight:640;margin-top:8px;line-height:1.45}
+.tgopt p{font-size:11.5px;color:var(--fg-mute);margin-top:4px;line-height:1.6}
+.jdpaste{margin-top:12px}
+.jdpaste textarea{min-height:86px;font-size:13px;line-height:1.7}
+
+/* ═══════════ 机会页 ═══════════ */
+.opps{max-width:1240px;margin:0 auto;padding:30px 30px 70px}
+.oppgrid{display:grid;grid-template-columns:1fr 1fr;gap:14px;margin-top:12px}
+.opp{background:var(--card);border:1px solid var(--line);border-radius:var(--r5);overflow:hidden;
+  display:flex;flex-direction:column;transition:.15s}
+.opp:hover{border-color:var(--line-hard)}
+.opp.entry{border-style:dashed;background:transparent}
+.opp-h{padding:15px 18px 11px}
+.opp-h .t1{font-family:var(--display);font-size:15.5px;font-weight:660;display:flex;align-items:center;gap:8px;flex-wrap:wrap;line-height:1.45}
+.opp-h .t2{font-size:11.8px;color:var(--fg-mute);margin-top:4px}
+.kindtag{font-size:10px;font-weight:750;border-radius:var(--rp);padding:1px 8px;letter-spacing:.3px;
+  background:var(--gold-bg);border:1px solid var(--gold-bd);color:var(--gold-ink)}
+.kindtag.ra{background:var(--blue-bg);border-color:var(--blue-bd);color:var(--blue-ink)}
+.kindtag.soon{background:var(--sunk2);border-color:var(--line-hard);color:var(--fg-mute)}
+.opp-score{display:flex;gap:6px;flex-wrap:wrap;padding:0 18px 12px}
+.opp-rel{padding:0 18px 12px;font-size:11.5px;color:var(--fg-mute);line-height:1.6}
+.opp-rel b{color:var(--fg-dim)}
+.opp-f{margin-top:auto;border-top:1px solid var(--line);background:var(--sunk);
+  padding:9px 14px;display:flex;gap:7px;align-items:center;flex-wrap:wrap}
+.opp-f .when{margin-left:auto;font-size:10.5px;color:var(--fg-mute)}
+
+/* 同频的人 */
+.peerwrap{margin-top:12px}
+.phdr{display:flex;align-items:center;gap:9px;background:var(--gold-bg);border:1px solid var(--gold-bd);
+  border-radius:var(--r4);padding:10px 14px;font-size:12px;color:var(--gold-ink);line-height:1.65}
+.phdr b{font-weight:750}
+.peergrid{display:grid;grid-template-columns:repeat(3,1fr);gap:12px;margin-top:12px}
+.peer{background:var(--card);border:1px solid var(--line);border-radius:var(--r4);padding:15px 16px;
+  display:flex;flex-direction:column}
+.peer .ph{display:flex;align-items:center;gap:9px}
+.peer .av2{width:30px;height:30px;border-radius:50%;background:var(--sunk2);color:var(--fg-mute);
+  display:grid;place-items:center;font-size:12px;font-weight:700;flex:none}
+.peer .hn{font-size:13.5px;font-weight:650}
+.peer .ln2{font-size:11px;color:var(--fg-mute);margin-top:1px;line-height:1.5}
+.peer .why2{margin-top:11px;font-size:10.5px;letter-spacing:.8px;font-weight:800;color:var(--fg-mute)}
+.peer .ovl{display:flex;gap:4px;flex-wrap:wrap;margin-top:6px}
+.peer .quote{margin-top:10px;border-left:2px solid var(--line-hard);padding-left:10px;
+  font-size:11.8px;color:var(--fg-dim);line-height:1.65}
+.peer .mine{margin-top:8px;font-size:11px;color:var(--gold-ink);background:var(--gold-bg);
+  border:1px solid var(--gold-bd);border-radius:var(--r3);padding:7px 9px;line-height:1.6}
+.peer .a2{display:flex;gap:6px;margin-top:12px;padding-top:11px;border-top:1px solid var(--line)}
+
+/* 可见性三层 */
+.vis{display:grid;grid-template-columns:repeat(3,1fr);gap:10px;margin-top:12px}
+.vlayer{background:var(--card);border:1px solid var(--line);border-radius:var(--r4);padding:14px 16px}
+.vlayer.lock{background:var(--sunk)}
+.vlayer .vh{display:flex;align-items:center;gap:8px}
+.vlayer .vn{font-size:13.5px;font-weight:640}
+.vlayer .vd{font-size:11.3px;color:var(--fg-mute);margin-top:5px;line-height:1.6}
+.vlayer .vs{margin-top:10px;font-size:11px;font-weight:700;border-radius:var(--rp);padding:2px 9px;
+  display:inline-block}
+.vlayer .vs.off{background:var(--sunk2);color:var(--fg-mute)}
+.vlayer .vs.on{background:var(--blue-bg);color:var(--blue-ink);border:1px solid var(--blue-bd)}
+.vlayer .vs.lockv{background:var(--red-bg);color:var(--red-ink);border:1px solid var(--red-bd)}
+.toggle2{margin-left:auto;width:32px;height:18px;border-radius:var(--rp);background:var(--sunk2);
+  position:relative;transition:.18s;flex:none}
+.toggle2 i{position:absolute;top:2px;left:2px;width:14px;height:14px;border-radius:50%;
+  background:var(--card);transition:.18s;box-shadow:0 1px 3px rgba(0,0,0,.25)}
+.toggle2.on{background:var(--blue)} .toggle2.on i{left:16px}
+.toggle2.dis{opacity:.45}
+
+/* 成果页的 JD 对齐块 */
+.jdboard{max-width:1320px;margin:20px auto 0;background:var(--card);border:1px solid var(--line);
+  border-radius:var(--r5);overflow:hidden}
+.jdboard .hb-h small{margin-left:auto}
+.jdb-b{padding:16px 22px 20px;display:grid;grid-template-columns:1fr 1fr;gap:18px}
+.jdcol h5{font-size:12px;font-weight:700;color:var(--fg-dim);display:flex;align-items:center;gap:7px;
+  padding-bottom:7px;border-bottom:1px solid var(--line);margin-bottom:9px}
+.jdcol h5 .b{margin-left:auto;font-size:10.5px;font-weight:750;border-radius:var(--rp);padding:1px 7px}
+.jdcol ul{list-style:none;display:grid;gap:6px}
+.jdcol li{font-size:12.2px;line-height:1.6;color:var(--fg-dim);display:flex;gap:8px;align-items:flex-start}
+.jdcol li i{font-style:normal;flex:none;margin-top:1px}
+.honest{grid-column:1/-1;background:var(--red-bg);border:1px solid var(--red-bd);border-radius:var(--r4);
+  padding:13px 16px;font-size:13px;color:var(--red-ink);line-height:1.75}
+.honest b{font-weight:750}
+
+@media(max-width:1040px){ .tgopts,.peergrid,.vis,.jdb-b,.oppgrid{grid-template-columns:1fr} }
+
+/* ═══════════ 浮层 ═══════════ */
+#pop{position:fixed;z-index:80;max-width:350px;background:var(--pop);color:var(--pop-fg);border-radius:var(--r3);
+  padding:12px 14px;box-shadow:var(--shadow-lg);display:none;font-size:12.5px;line-height:1.62;
+  border:1px solid var(--pop-line)}
+#pop .h{display:flex;align-items:center;gap:7px;font-size:10.5px;opacity:.72;letter-spacing:.6px;margin-bottom:6px}
+#pop .h em{font-style:normal;font-weight:750;opacity:1}
+.toast{position:fixed;bottom:22px;left:50%;transform:translateX(-50%);background:var(--pop);color:var(--pop-fg);
+  padding:10px 18px;border-radius:var(--rp);font-size:12.8px;z-index:90;opacity:0;pointer-events:none;
+  transition:.25s;max-width:min(620px,88vw);text-align:center;line-height:1.5;border:1px solid var(--pop-line)}
+.toast.on{opacity:1;transform:translateX(-50%) translateY(-4px)}
+.toast .u{margin-left:12px;color:var(--gold);font-weight:750;pointer-events:auto;cursor:pointer;text-decoration:underline}
+.bump{position:absolute;right:14px;top:6px;font-size:11px;font-weight:750;color:var(--gold-ink);
+  background:var(--gold-bg);border:1px solid var(--gold-bd);border-radius:var(--rp);padding:2px 9px;
+  pointer-events:none;opacity:0;z-index:5}
+.bump.on{animation:bump 1.6s ease-out}
+@keyframes bump{0%{opacity:0;transform:translateY(6px)}18%{opacity:1;transform:translateY(0)}
+  78%{opacity:1}100%{opacity:0;transform:translateY(-9px)}}
+.autobar{position:fixed;left:50%;bottom:22px;transform:translateX(-50%);display:none;align-items:center;gap:12px;
+  background:var(--pop);color:var(--pop-fg);border-radius:var(--rp);padding:8px 10px 8px 18px;z-index:85;
+  box-shadow:var(--shadow-lg);border:1px solid var(--pop-line)}
+.autobar.on{display:flex}
+.autobar .t{font-size:12.5px;opacity:.78}
+.autobar .t b{opacity:1}
+.autobar button{border-radius:var(--rp);padding:5px 13px;font-size:12px;background:var(--gold);color:var(--on-gold);font-weight:640}
+
+/* ═══════════ 响应式 ═══════════ */
+.mobbtn{display:none}
+/* 面板列宽由 JS 的 layout() 算（含窄屏自动收起），这里只管其他版块 */
+@media(max-width:1240px){
+  .hero{grid-template-columns:1fr;gap:34px}
+  .expgrid,.strip{grid-template-columns:1fr}
+  .srcgrid{grid-template-columns:1fr 1fr}
+}
+@media(max-width:1040px){
+  .cards3,.flow,.esteps,.hb-b,.ways{grid-template-columns:1fr 1fr}
+  .panes{grid-template-columns:1fr}
+  .stepper{display:none}
+}
+@media(max-width:760px){
+  .cards3,.flow,.esteps,.hb-b,.crumbgrid,.modes,.bstat,.ways,.srcgrid{grid-template-columns:1fr}
+  .hero h1{font-size:31px}
+  .rv-h h2{font-size:20px}
+  .goal,.topnav,.pbLabel{display:none}
+  .panes{gap:14px}
+  .matrix{grid-template-columns:repeat(3,1fr)}
+}
+@media(prefers-reduced-motion:reduce){
+  *{animation-duration:.01ms!important;transition-duration:.01ms!important}
+}
+</style>
+</head>
+<body>
+<div class="stage">
+
+<!-- ══════════════ ⓪ 落地页（未登录） ══════════════ -->
+<section class="screen on" id="s-landing">
+  <div class="top">
+    <div class="brand"><span class="dot"></span>Grill Your Crumbs</div>
+    <nav class="topnav" style="display:flex;gap:2px;margin-left:6px">
+      <a class="navlink" href="#why">它凭什么不一样</a>
+      <a class="navlink" href="#how">5 分钟里发生什么</a>
+    </nav>
+    <div class="tr">
+      <button class="theme" onclick="toggleTheme()" title="切换深色 / 浅色" aria-label="切换主题"><span id="themeIc">◐</span></button>
+      <button class="skin" onclick="cycleSkin()" title="换一套视觉（编辑部 / 控制台 / 高饱和）"><i></i><span class="skinName">编辑部</span></button>
+      <button class="btn ghost sm" onclick="autoTour()">看一遍完整演示 ▶</button>
+      <button class="btn sm" onclick="go('dash')">进入我的工作区</button>
+    </div>
+  </div>
+
+  <div class="scroll">
+    <div class="herowrap">
+      <div class="lwrap">
+        <div class="hero">
+          <div>
+            <span class="kick">RESUME · NETWORKING · 面试自我介绍</span>
+            <h1>你的经历写得干巴巴，<br>不是因为你写得差——<br>是<em>没人问过你正确的问题</em>。</h1>
+            <p class="lede">把简历、GitHub、笔记、日记、社交动态全丢进来。我先读一遍，然后<b>只问那些你不说就没人知道</b>的问题。你答一句，右边那份稿子就长一块——<b>每一句都能点开看出处</b>。</p>
+            <div class="hcta">
+              <button class="btn" onclick="go('dash')">进入我的工作区 →</button>
+              <button class="btn ghost" onclick="autoTour()">先看一遍完整演示</button>
+            </div>
+            <p class="hnote">约 5 分钟 · 5～6 个问题 · 全程可撤回 · 无需注册　<code>demo 数据为虚构样例</code></p>
+          </div>
+          <div class="spec" id="specCard">
+            <div class="st">AFTER · 6 轮拷问之后 <span class="pill">悬停任意高亮 → 看出处</span></div>
+            <div class="body" id="specBody"></div>
+            <div class="foot">
+              <span><i style="background:var(--blue)"></i>来自你已有的材料</span>
+              <span><i style="background:var(--gold)"></i>刚从你嘴里挖出来的</span>
+              <span><i style="border:1.5px dashed var(--red)"></i>AI 补的，请你确认</span>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div class="band" id="why">
+      <div class="lwrap">
+        <h2>「这不就是 ChatGPT 帮你改简历吗？」</h2>
+        <p class="sub">不是。差别就三条，而且每一条都长在界面上，不在话术里。</p>
+        <div class="cards3">
+          <div class="c3">
+            <div class="n">01 · 它先说出它不知道什么</div>
+            <h3>每个问题都带一句「我为什么问这个」，理由必须指向具体的某一条材料。</h3>
+            <p>它不会问「能再多讲讲吗」。它会告诉你：这件事在你的 8 份材料里出现过几次、缺的是哪一块。</p>
+            <div class="ex">「你的 X 动态里已经写了 CTR 1.8%→3.1%，<b>所以这段我不问</b>。我不确定的是：这个提升换算成业务是什么——<b>八份材料里没有一份提到过</b>。」</div>
+          </div>
+          <div class="c3">
+            <div class="n">02 · 每一句话都指得出出处</div>
+            <h3>三色标注贯穿全稿：蓝色来自材料，金色来自你刚说的原话，红色是 AI 补的。</h3>
+            <p>金色片段硬绑到「第几轮、你的哪句原话」。指不出来源的句子会自动降级成红色并要求你确认——模型没法自说自话。</p>
+            <div class="ex">成稿最后一条是句无出处的套话，我们<b>故意没有藏起来</b>：它标红、挂着「无出处」角标、旁边就是【删掉这条】。</div>
+          </div>
+          <div class="c3">
+            <div class="n">03 · 挖到的东西留得下来</div>
+            <h3>每条新事实是可数、带标签、可撤回的独立条目，攒进你自己的事实库。</h3>
+            <p>我们不给「完成度 78%」这种没人能验证的数字——没人能确定性地知道你「讲完」了没有。我们只给<b>能数清的东西</b>，而且这些条目下次写别的简历还能接着用。</p>
+            <div class="ex">这也是为什么会有一个 <b>Dashboard</b>：Thread、简历版本、事实库都在那儿沉淀，而不是聊完就没了。</div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div class="band" id="how">
+      <div class="lwrap">
+        <h2>接下来这 5 分钟会发生什么</h2>
+        <p class="sub">先把预期讲清楚，再开始。你随时知道自己在第几步、还剩几步。</p>
+        <div class="flow">
+          <div class="fs"><span class="t">40 秒</span><div class="i">①</div><h4>投喂</h4>
+            <p>粘一段你写得最烂的经历，勾上要用的 crumbs，选一个目标（投简历 / LinkedIn / 面试自我介绍）。</p></div>
+          <div class="fs"><span class="t">3 分钟</span><div class="i">②</div><h4>拷问</h4>
+            <p>一次一问，每题先给你一个猜测答案——点头就行，不用从头写。不想答可以跳过，问得烂可以骂它。</p></div>
+          <div class="fs"><span class="t">同步发生</span><div class="i">③</div><h4>活稿在右边长</h4>
+            <p>不用等到最后。你每答一题，右边稿子里对应的灰色骨架就当场变成金色，左边账本多出几条。</p></div>
+          <div class="fs"><span class="t">30 秒</span><div class="i">④</div><h4>成果，然后回工作区</h4>
+            <p>原文和成稿并排。导出之后，这场 Thread、这份简历、这些事实都会落进你的 Dashboard。</p></div>
+        </div>
+        <div class="promise">
+          <span class="pm"><em>✓</em> 你的原文一个字都不会被改，它是最后的对比基准</span>
+          <span class="pm"><em>✓</em> 任何一轮都能撤回，稿子跟着回退</span>
+          <span class="pm"><em>✓</em> 问得烂就点「这问题没意义」，它会承认并换一个</span>
+          <span class="pm"><em>✓</em> 结束时你拿到：简历 bullet ＋ 60 秒自我介绍 ＋ 一条可分享的 Thread</span>
+        </div>
+      </div>
+    </div>
+
+    <div class="endcta">
+      <div class="lwrap">
+        <h2>把那 73 个字，换成一份指得出出处的稿子。</h2>
+        <p>不用注册，数据留在本地。演示用的是一份虚构样例。</p>
+        <div class="row" style="display:flex;gap:12px;justify-content:center;margin-top:24px;padding:0;border:0">
+          <button class="btn" onclick="go('dash')">进入我的工作区 →</button>
+          <button class="btn ghost" onclick="autoTour()">看一遍完整演示</button>
+        </div>
+      </div>
+      <p class="lfoot">Grill Your Crumbs · 单文件交互原型 · 假数据、无后端</p>
+    </div>
+  </div>
+</section>
+
+<!-- ══════════════ ① Dashboard · 以「经历」为单位 ══════════════ -->
+<section class="screen" id="s-dash">
+  <div class="top">
+    <div class="brand"><span class="dot"></span>Grill Your Crumbs</div>
+    <nav class="topnav" style="display:flex;gap:2px;margin-left:6px">
+      <button class="navlink on">工作区</button>
+      <button class="navlink" onclick="go('opps')">机会</button>
+      <button class="navlink" onclick="go('landing')">首页</button>
+    </nav>
+    <div class="tr">
+      <button class="theme" onclick="toggleTheme()" aria-label="切换主题"><span>◐</span></button>
+      <button class="skin" onclick="cycleSkin()" title="换一套视觉（编辑部 / 控制台 / 高饱和）"><i></i><span class="skinName">编辑部</span></button>
+      <button class="gbtn" id="tourBtn0" onclick="autoTour()">自动演示 ▶</button>
+      <button class="gbtn pri" onclick="go('setup')">＋ 开一场新的 Grill</button>
+    </div>
+  </div>
+  <div class="scroll">
+    <div class="dash">
+      <div class="dhead">
+        <div>
+          <h1>Chen 的工作区</h1>
+          <p>按<b>经历</b>组织，不按我们的数据结构组织。<br>
+             每张卡是你能拿去讲的一段事——它现在有多厚、喂了哪几份稿子、还缺哪几个维度。</p>
+        </div>
+      </div>
+
+      <!-- 待办不是分类，是动作 -->
+      <div class="inbox" id="inbox"></div>
+
+      <div class="shelfhead">
+        <h2>我的经历</h2><span class="c num" id="expCnt">3</span>
+        <p>下面那 6 个格子是<b>维度矩阵</b>：填了几格是数出来的，不是完成度。<br>空格＝这段还没被问到那个角度。</p>
+      </div>
+      <div class="expgrid" id="expGrid"></div>
+
+      <div class="shelfhead">
+        <h2>产出物</h2><span class="c num" id="artCnt2">4</span>
+        <p>每份稿子由哪几段经历喂出来 · 三色条＝这份稿子有多少是有出处的</p>
+      </div>
+      <div class="strip" id="artStrip"></div>
+
+      <div class="shelfhead">
+        <h2>材料</h2><span class="c num">12</span>
+        <p>原料层。同一条材料可以喂给多段经历。</p>
+      </div>
+      <div class="srcgrid" id="srcGrid"></div>
+    </div>
+  </div>
+</section>
+
+
+<!-- ══════════════ ①b 机会 · 顶层导航第二项 ══════════════ -->
+<section class="screen" id="s-opps">
+  <div class="top">
+    <div class="brand"><span class="dot"></span>Grill Your Crumbs</div>
+    <nav class="topnav" style="display:flex;gap:2px;margin-left:6px">
+      <button class="navlink" onclick="go('dash')">工作区</button>
+      <button class="navlink on">机会</button>
+      <button class="navlink" onclick="go('landing')">首页</button>
+    </nav>
+    <div class="tr">
+      <button class="theme" onclick="toggleTheme()" aria-label="切换主题"><span>◐</span></button>
+      <button class="skin" onclick="cycleSkin()" title="换一套视觉（编辑部 / 控制台 / 高饱和）"><i></i><span class="skinName">编辑部</span></button>
+      <button class="gbtn" onclick="ev('add_target')">＋ 贴一个 JD</button>
+      <button class="gbtn pri" onclick="go('setup')">＋ 开一场新的 Grill</button>
+    </div>
+  </div>
+  <div class="scroll">
+    <div class="opps">
+      <div class="dhead">
+        <div>
+          <h1>机会</h1>
+          <p>岗位和人，本质是同一件事——<b>拿你的事实去对外部的要求</b>。<br>
+             所以这一页和工作区共用同一个事实库，只是换了个方向看。</p>
+        </div>
+      </div>
+
+      <div class="inbox" id="oppInbox"></div>
+
+      <div class="shelfhead">
+        <h2>岗位 / 机会</h2><span class="c num" id="oppCnt">3</span>
+        <p>每张卡都是可数的：<b>对上几条 · 弱几条 · 还能问出几条 · 你确实没有几条</b>。<br>
+           点「去补缺口」＝开一场以这个目标为锚的拷问。</p>
+      </div>
+      <div class="oppgrid" id="oppGrid"></div>
+
+      <div class="shelfhead">
+        <h2>同频的人</h2><span class="c num">3</span>
+        <p>不是「猜你喜欢」。每张卡都写清<b>为什么给你看他</b>——<br>你们哪几个标签重叠、各自的哪一条事实撞在一起。</p>
+      </div>
+      <div class="peerwrap">
+        <div class="phdr">⚠ <b>示意 · 数据虚构。</b>这一块是 placeholder：真实的匹配需要双边网络，现在还没有。
+          放在这里是为了先把<b>「匹配用什么算」</b>这件事定下来 —— 见下面的可见性分层。</div>
+        <div class="peergrid" id="peerGrid"></div>
+      </div>
+
+      <div class="shelfhead">
+        <h2>可见性</h2><span class="c">placeholder</span>
+        <p>你敢把日记丢进来，是因为我们承诺它只用来问问题。<br>
+           所以<b>匹配只在标签层发生</b>，事实原文默认不公开、逐条放行。</p>
+      </div>
+      <div class="vis" id="visGrid"></div>
+      <p class="hint" style="max-width:70ch;margin-top:12px">
+        这三层现在是静态展示。真做的时候，每条事实旁边会有一个可见性小图标，
+        工作区顶部会常驻一句「你有 N 条事实是公开的」并能一键收回。
+        <b>如果这层没做完，社交那块就不该上线</b>——它会给出一个我们不打算兑现的承诺。</p>
+    </div>
+  </div>
+</section>
+
+<!-- ══════════════ ② 投喂（两种方式） ══════════════ -->
+<section class="screen" id="s-setup">
+  <div class="top">
+    <div class="brand"><span class="dot"></span>Grill Your Crumbs</div>
+    <nav class="stepper" id="stepper1"></nav>
+    <div class="tr">
+      <button class="theme" onclick="toggleTheme()" aria-label="切换主题"><span>◐</span></button>
+      <button class="skin" onclick="cycleSkin()" title="换一套视觉（编辑部 / 控制台 / 高饱和）"><i></i><span class="skinName">编辑部</span></button>
+      <button class="gbtn" onclick="go('dash')">← 回工作区</button>
+      <button class="gbtn" id="tourBtn1" onclick="autoTour()">自动演示 ▶</button>
+    </div>
+  </div>
+  <div class="scroll">
+    <div class="setup">
+      <div class="kick2">第 ① 步 · 投喂</div>
+      <h1>这一场，我们从<em>哪儿</em>开始？</h1>
+      <p class="lede">两条路都行。你心里已经有那段想改的经历，就自己写；<b>没想好写哪段，就让我从你的材料里挑</b>。</p>
+
+      <div class="ways">
+        <button class="way on" id="wayA" onclick="setWay('write')">
+          <span class="wt"><span class="i">A</span>我有一段想改的经历</span>
+          <p>粘一段你自己写的（通常很干巴），它会成为最后对比用的基准。适合已经有简历、想改某一条的人。</p>
+        </button>
+        <button class="way" id="wayB" onclick="setWay('pick')">
+          <span class="wt"><span class="i">B</span>从我的材料里挑一段</span>
+          <p><b>一个字都不用写。</b>我先把你的 crumbs 聚成几段能讲的经历，告诉你每段有多厚、缺口在哪，你挑一个就开始。</p>
+        </button>
+      </div>
+
+      <!-- ── 方式 A ── -->
+      <div class="wayBody on" id="bodyWrite">
+        <div class="blk">
+          <div class="blab">这段经历 <i>必填</i></div>
+          <textarea class="ta" id="ta" aria-label="你的原始经历"></textarea>
+          <div class="hint">↑ 这段是<b>基准</b>：一个字都不会被改动，最后要和成稿并排对比。<span id="taCount" class="num"></span></div>
+        </div>
+      </div>
+
+      <!-- ── 方式 B ── -->
+      <div class="wayBody" id="bodyPick">
+        <div class="blk">
+          <div class="blab">我从 12 条材料里聚出了这几段 <i>点一个开始</i></div>
+          <div class="expopts" id="expOpts"></div>
+          <div class="picked" id="pickedBox"></div>
+        </div>
+      </div>
+
+      <div class="blk">
+        <div class="blab">① 产出什么 <i>格式</i></div>
+        <div class="chips" id="forx"></div>
+      </div>
+
+      <div class="blk">
+        <div class="blab">② 为谁做 <i>TARGET · 可留空</i></div>
+        <div class="tgopts" id="tgOpts"></div>
+        <div class="jdpaste" id="jdPaste" style="display:none">
+          <textarea class="ta" id="jdText" aria-label="粘贴 JD 原文"
+            placeholder="把岗位描述整段粘进来——职责、要求、加分项都要。我会拆成一条一条的要求，再告诉你哪几条你其实有、哪几条只有你能补、哪几条你确实没有。"></textarea>
+          <div class="hint" style="display:flex;gap:9px;align-items:center;flex-wrap:wrap">
+            <button class="gbtn" onclick="parseJD()">解析这段 JD →</button>
+            <span>解析完你会看到一张<b>要求清单</b>，不是一句「匹配度 78%」。</span>
+          </div>
+        </div>
+        <div id="tgSummary"></div>
+      </div>
+
+      <div class="blk">
+        <div class="blab">本场装载的 Crumbs <i>进了工作台还能随时增减</i></div>
+        <div class="crumbgrid" id="crumbgrid"></div>
+        <div class="hint" id="crumbHint"></div>
+      </div>
+
+      <div class="expect">
+        <div class="eh">接下来会发生什么 <em>约 5 分钟 · 6 轮 · 随时可退出</em></div>
+        <div class="esteps">
+          <div class="es"><div class="i">①</div><h5>投喂</h5><p>你现在在这里。</p></div>
+          <div class="es"><div class="i">②</div><h5>一次一问</h5><p>6 轮，每题带「我为什么问这个」和一个猜测答案。</p></div>
+          <div class="es"><div class="i">③</div><h5>四个面板同步长</h5><p>材料 · 拷问 · 简历活稿 · 收获账本。每个都能收到边上或放大。</p></div>
+          <div class="es"><div class="i">④</div><h5>成果 → 回工作区</h5><p>这段经历会变厚一截，产出物挂在它下面。</p></div>
+        </div>
+        <div class="ep">
+          <ul>
+            <li><i>✓</i><span>每题都先给<b>猜测答案</b>——点头就行，不用从头打字。</span></li>
+            <li><i>✓</i><span>任何一轮、任何一条新事实都能<b>撤回</b>，简历稿会跟着回退（<b>⌘Z / Ctrl+Z</b>）。</span></li>
+            <li><i>✓</i><span>问得烂就点<b>「这问题没意义」</b>——它会承认，并换一个只有你能答的。</span></li>
+            <li><i>✓</i><span>我们不会给你「完成度 78%」这种数字。<b>没人能确定你讲完了没有</b>，所以我们只报能数清的：多挖到了几条、进稿几句。</span></li>
+          </ul>
+        </div>
+      </div>
+
+      <div class="gostrip">
+        <button class="go" id="startBtn" onclick="go('wb')">开始拷问 →</button>
+        <small>预计 6 轮 · 中途随时可以点「够了，出稿」<br>不满意可以回到这里换一段，已挖到的内容不会丢</small>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ══════════════ ③ 工作台 · 四面板 ══════════════ -->
+<section class="screen" id="s-wb">
+  <div class="top">
+    <div class="brand"><span class="dot"></span>Grill Your Crumbs</div>
+    <nav class="stepper" id="stepper2"></nav>
+    <div class="goal">Grill for <b id="goalTxt">投一份实习／校招简历</b></div>
+    <div class="tr">
+      <button class="theme" onclick="toggleTheme()" aria-label="切换主题"><span>◐</span></button>
+      <button class="skin" onclick="cycleSkin()" title="换一套视觉（编辑部 / 控制台 / 高饱和）"><i></i><span class="skinName">编辑部</span></button>
+      <button class="gbtn" id="undoBtn" onclick="undo()" disabled>撤回上一步<kbd>⌘Z</kbd></button>
+      <button class="gbtn" id="tourBtn2" onclick="autoTour()">自动演示 ▶</button>
+      <button class="gbtn pri" onclick="go('done')">够了，出稿 →</button>
+    </div>
+  </div>
+
+  <div class="wb">
+    <!-- 常驻 Target 条：这一场是为谁做的，永远可见 -->
+    <div class="tbar" id="tbar"></div>
+
+    <!-- 面板控制条 -->
+    <div class="panelbar" id="panelbar">
+      <span class="pbLabel">面板</span>
+      <button class="pchip" id="chip-crumbs" onclick="cyclePanel('crumbs')"><span class="sq"></span>材料<span class="k">1</span></button>
+      <button class="pchip" id="chip-grill"  onclick="cyclePanel('grill')"><span class="sq"></span>拷问<span class="k">2</span></button>
+      <button class="pchip" id="chip-draft"  onclick="cyclePanel('draft')"><span class="sq"></span>简历活稿<span class="k">3</span></button>
+      <button class="pchip" id="chip-ledger" onclick="cyclePanel('ledger')"><span class="sq"></span>收获账本<span class="k">4</span></button>
+      <button class="pchip" id="chip-target" onclick="cyclePanel('target')"><span class="sq"></span>目标 JD<span class="k">5</span></button>
+      <div class="pbRight">
+        <span class="pbLabel" style="letter-spacing:.3px;font-weight:500;text-transform:none">点一下收起 · 再点展开 · ⤢ 放大</span>
+        <button class="gbtn" style="padding:3px 10px;font-size:11.5px" onclick="resetLayout()">重置布局</button>
+      </div>
+    </div>
+
+    <div class="panelsWrap">
+      <button class="barToggle" id="barToggle" onclick="toggleBar()">▲ 收起面板条</button>
+      <div class="panels" id="panels">
+
+        <!-- ① 材料 -->
+        <section class="panel tone" id="p-crumbs">
+          <button class="panel-min" onclick="cyclePanel('crumbs')" title="展开材料面板">
+            <span class="ic0">◫</span><span class="lbl">材料</span><span class="n0 num" id="minCrumbs">8</span>
+          </button>
+          <div class="panel-h">
+            <h3>CRUMBS · 原料</h3><span class="pc num" id="pcCrumbs">8</span>
+            <span class="pa">
+              <button class="picon" onclick="maxPanel('crumbs')" title="放大">⤢</button>
+              <button class="picon" onclick="cyclePanel('crumbs')" title="收起">‹</button>
+            </span>
+          </div>
+          <div class="panel-b" id="crumbsBody"></div>
+          <div class="panel-f"><small>拖动卡片可以在「本场使用中」和「材料库」之间搬</small></div>
+        </section>
+
+        <!-- ② 拷问 -->
+        <section class="panel" id="p-grill">
+          <button class="panel-min" onclick="cyclePanel('grill')" title="展开拷问面板">
+            <span class="ic0">◈</span><span class="lbl">拷问</span><span class="n0 num" id="minGrill">0</span>
+          </button>
+          <div class="panel-h">
+            <h3>GRILL · 一次一问</h3><span class="pc num" id="rounds">0 / 6</span>
+            <span class="pa">
+              <button class="picon" onclick="maxPanel('grill')" title="放大">⤢</button>
+              <button class="picon" onclick="cyclePanel('grill')" title="收起">‹</button>
+            </span>
+          </div>
+          <div class="panel-b mid-b" id="grill"></div>
+          <div class="composer">
+            <div class="cp-tip" id="cpTip"><span class="d"></span><span id="cpTipTxt">想自己说？直接在这里写。</span></div>
+            <div class="cp-box" id="cpBox">
+              <div class="cp-in" id="cpIn" contenteditable="true" role="textbox" aria-label="补充你的回答" data-ph="补充你的回答…"></div>
+              <button class="cp-send" id="cpSend" onclick="send()">发送 <kbd>↵</kbd></button>
+            </div>
+          </div>
+        </section>
+
+        <!-- ③ 简历活稿 -->
+        <section class="panel" id="p-draft">
+          <button class="panel-min" onclick="cyclePanel('draft')" title="展开简历面板">
+            <span class="ic0">▤</span><span class="lbl">简历活稿</span><span class="n0 num" id="minDraft">0</span>
+          </button>
+          <div class="panel-h">
+            <h3>DYNAMIC RESUME · 活稿</h3>
+            <span class="pc hot num" id="pcDraft">0</span>
+            <span class="pa">
+              <button class="picon" onclick="maxPanel('draft')" title="放大">⤢</button>
+              <button class="picon" onclick="cyclePanel('draft')" title="收起">‹</button>
+            </span>
+          </div>
+          <div class="out-h">
+            <div class="cbar"><i class="s" id="cS" style="width:39%"></i><i class="g" id="cG" style="width:0%"></i><i class="f" id="cF" style="width:50%"></i></div>
+            <div class="clegend">
+              <button class="cl" onclick="flash('source')"><i class="sw s"></i>有材料出处 <b id="nS" class="num">7</b></button>
+              <button class="cl hot" onclick="flash('grill')"><i class="sw g"></i>刚挖出来的 <b id="nG" class="num">0</b></button>
+              <button class="cl" onclick="flash('ghost')"><i class="sw f"></i>还没挖到 <b id="nF" class="num">9</b></button>
+              <button class="cl" onclick="flash('inferred')"><i class="sw i"></i>无出处 <b id="nI" class="num">2</b></button>
+              <span class="denom" id="denom" tabindex="0">共 18 个片段 ⓘ</span>
+            </div>
+            <div class="bump" id="bump"></div>
+          </div>
+          <div class="panel-b out-b" id="outBody">
+            <div class="view on" id="viewA">
+              <div class="sheet">
+                <h4>RESUME · EXPERIENCE</h4>
+                <div id="bullets"></div>
+                <div class="dz" id="dropzone">⤓　把候补事实拖到这里，它就变成简历里的一条 bullet（可撤回）</div>
+                <h4>自我介绍 · 60 秒版</h4>
+                <div class="intro" id="intro"></div>
+              </div>
+            </div>
+          </div>
+          <div class="panel-f">
+            <button class="gbtn" style="padding:4px 11px;font-size:12px" onclick="ev('copy_artifact')">复制</button>
+            <button class="gbtn" style="padding:4px 11px;font-size:12px" onclick="ev('export_md')">导出</button>
+            <small>每答一题，这里就多一块金色</small>
+          </div>
+        </section>
+
+        <!-- ④ 收获账本（原「Thread 成果」已并入） -->
+        <section class="panel tone" id="p-ledger">
+          <button class="panel-min" onclick="cyclePanel('ledger')" title="展开收获账本">
+            <span class="ic0">◱</span><span class="lbl">收获账本</span><span class="n0 num" id="minLedger">0</span>
+          </button>
+          <div class="panel-h">
+            <h3>收获账本</h3><span class="pc hot num" id="pcLedger">0</span>
+            <span class="pa">
+              <div class="lgKey" style="margin-right:4px">
+                <button class="on" id="lkDim" onclick="setLedgerKey('dim')">按维度</button>
+                <button id="lkTag" onclick="setLedgerKey('tag')">按标签</button>
+              </div>
+              <button class="picon" onclick="maxPanel('ledger')" title="放大">⤢</button>
+              <button class="picon" onclick="cyclePanel('ledger')" title="收起">‹</button>
+            </span>
+          </div>
+          <div class="panel-b">
+            <div class="ledger" id="ledger"></div>
+          </div>
+          <div class="panel-f"><small>每条只标它来自第几轮 —— 问题本身在左边拷问栏，不重复一遍</small></div>
+        </section>
+
+        <!-- ⑤ 目标 JD（默认收起） -->
+        <section class="panel tone min" id="p-target">
+          <button class="panel-min" onclick="cyclePanel('target')" title="展开目标 JD">
+            <span class="ic0">◎</span><span class="lbl">目标 JD</span><span class="n0 num" id="minTarget">0</span>
+          </button>
+          <div class="panel-h">
+            <h3>目标 · 要求清单</h3><span class="pc num" id="pcTarget">0</span>
+            <span class="pa">
+              <button class="picon" onclick="maxPanel('target')" title="放大">⤢</button>
+              <button class="picon" onclick="cyclePanel('target')" title="收起">›</button>
+            </span>
+          </div>
+          <div class="panel-b"><div class="reqlist" id="reqList"></div></div>
+          <div class="panel-f"><small>无证据的要求永远不会被写成简历文案</small></div>
+        </section>
+
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ══════════════ ④ 成果 ══════════════ -->
+<section class="screen" id="s-done">
+  <div class="top">
+    <div class="brand"><span class="dot"></span>Grill Your Crumbs</div>
+    <nav class="stepper" id="stepper3"></nav>
+    <div class="tr">
+      <button class="theme" onclick="toggleTheme()" aria-label="切换主题"><span>◐</span></button>
+      <button class="skin" onclick="cycleSkin()" title="换一套视觉（编辑部 / 控制台 / 高饱和）"><i></i><span class="skinName">编辑部</span></button>
+      <button class="gbtn" onclick="go('wb')">← 回工作台继续问</button>
+      <button class="gbtn" onclick="ev('export_md')">导出 Markdown</button>
+      <button class="gbtn pri" onclick="finishToDash()">完成，存进工作区 →</button>
+    </div>
+  </div>
+  <div class="rv">
+    <div class="rv-h">
+      <h2>同一段经历，<em id="rvN">9 处</em>是刚刚从你嘴里挖出来的——<br>你原来那 73 个字里，一个都没有。</h2>
+      <div class="legend">
+        <span class="lg2"><i class="sw s"></i>来自你已有的材料 <b id="rS" class="num">7</b></span>
+        <span class="lg2 gold"><i class="sw g"></i>刚刚从你嘴里挖出来的 <b id="rG" class="num">9</b></span>
+        <span class="lg2"><i class="sw i"></i>AI 补的，请你确认 <b id="rI" class="num">2</b></span>
+        <span class="lg2" style="border-style:dashed">悬停任意高亮 → 看它的出处</span>
+      </div>
+    </div>
+    <div class="rv-b">
+      <div class="panes">
+        <div class="pn before">
+          <div class="pn-t"><span>BEFORE</span>你自己写的那一版</div>
+          <div class="old" id="oldText"></div>
+          <div class="old-note">73 个字，零个数字，零个决策，零个困难。<br>
+            这不是你写得差——是<b>没人问过你正确的问题</b>。</div>
+          <div class="bstat">
+            <div class="bs"><b id="bsG" class="num">10</b><span>挖到的新事实（条）</span></div>
+            <div class="bs"><b id="bsR" class="num">5</b><span>你回答过的轮次</span></div>
+            <div class="bs"><b id="bsX" class="num">1</b><span>被你判为「没意义」</span></div>
+            <div class="bs"><b id="bsI" class="num">2</b><span>还没有出处，等你确认</span></div>
+          </div>
+        </div>
+        <div class="pn">
+          <div class="pn-t"><span class="aft">AFTER</span>6 轮拷问之后</div>
+          <div class="sheet">
+            <h4>RESUME · EXPERIENCE</h4>
+            <div id="bullets2"></div>
+            <h4>自我介绍 · 60 秒版</h4>
+            <div class="intro" id="intro2"></div>
+          </div>
+          <div class="exports">
+            <button class="gbtn pri" onclick="ev('copy_artifact')">复制全文</button>
+            <button class="gbtn" onclick="ev('export_md')">导出 Markdown</button>
+            <button class="gbtn" onclick="ev('save_thread')">存为我的 Thread</button>
+            <small>↑ 这三个按钮的点击率＝唯一的成功度量点</small>
+          </div>
+        </div>
+      </div>
+
+      <div class="harvestboard">
+        <div class="hb-h"><h3>这一场挖到了什么 · 按维度分组</h3>
+          <small id="hbSum">共 10 条新事实，来自 5 轮回答</small></div>
+        <div class="hb-b" id="hbBody"></div>
+      </div>
+
+      <div class="jdboard" id="jdBoard"></div>
+
+      <!-- 明确的收尾动线：不要把人留在死胡同里 -->
+      <div class="landing-strip">
+        <div class="m">
+          <h4>这一场就到这儿。接下来去哪？</h4>
+          <p>这一场挖到的 <b id="lsN" class="num">10</b> 条事实会挂到<b>「校园二手交易平台 · 推荐系统」</b>这段经历下面，产出物也挂在它下面。<br>这段经历因此变厚了一截——下次写别的简历直接从它取料，不用把同样的问题再答一遍。</p>
+        </div>
+        <div class="a">
+          <button class="btn" onclick="finishToDash()">完成，存进工作区 →</button>
+          <button class="btn ghost" onclick="go('wb')">再问几轮</button>
+          <button class="btn ghost" onclick="go('setup')">换一段经历再来一场</button>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+</div>
+
+<div id="pop" role="tooltip"></div>
+<div class="toast" id="toast" role="status"></div>
+<div class="autobar" id="autobar">
+  <span class="t" id="autoTxt">自动演示 · <b>落地页</b></span>
+  <button onclick="stopTour()">停止并接管</button>
+</div>
+
+<script>
+/* ============================================================
+   Grill Your Crumbs — 最终 demo 的假数据
+   在原 data.js 基础上补了三件东西（都是评审要求的）：
+   1) turn.grip      把「我对这块的把握」从裸百分比换成可数的证据
+   2) HARVEST        新事实拆成带 id / 维度 / 标签的独立条目，可数可撤回
+   3) segment.hs     稿子里每个金色片段硬绑到它依赖的那几条新事实
+   ============================================================ */
+
+const BASELINE =
+  '大三的时候在一个实验室做了个推荐系统的项目，主要负责后端和一部分模型。做了大概半年，最后上线了，效果还可以。中间遇到了一些困难，也学到了很多东西。';
+
+const CRUMBS = [
+  { id:'c1', type:'resume',   name:'Chen-Resume-2026.pdf', text:'XX大学 计算机科学与技术 2022–2026 · GPA 3.8/4.0' },
+  { id:'c2', type:'resume',   name:'Chen-Resume-2026.pdf', text:'校园二手交易平台 · 推荐系统 · 后端开发 · 2025.03–2025.09' },
+  { id:'c3', type:'repo',     name:'github.com/chen/campus-rec', text:'Python · FastAPI · Faiss · Redis · LightGBM ｜ 128 commits，主力提交者' },
+  { id:'c4', type:'repo',     name:'campus-rec / README.md', text:'双塔召回 + LightGBM 精排；日均请求 12w' },
+  { id:'c5', type:'notes',    name:'notes-2025.md', text:'2025-05-18 线上 P99 又炸了。Faiss 全量加载太慢，冷启动要 40s，内存也顶不住。' },
+  { id:'c6', type:'diary',    name:'diary/2025-06.md', text:'2025-06-02 跟师兄吵了一架。他坚持要上 BERT，可我们根本没有那么多标注数据。' },
+  { id:'c7', type:'social',   name:'X · @chen_dev', text:'终于把 CTR 从 1.8% 拉到 3.1% 了，今晚能睡个好觉。' },
+  { id:'c8', type:'linkedin', name:'LinkedIn · Experience', text:'Backend Engineer Intern · 2025.07–2025.09' },
+  /* ↓ 材料库里还有这些，默认不在本场——可以从右边拖进来 */
+  { id:'c9',  type:'repo',   name:'github.com/chen/pay-gateway', text:'Go · Redis · 令牌桶限流中间件；2024 暑期实习产出', off:true },
+  { id:'c10', type:'notes',  name:'notes-2024.md', text:'2024-08-03 压测环境和线上流量分布不一样，前两次调参全白干了。', off:true },
+  { id:'c11', type:'social', name:'X · @chen_dev', text:'读完《Designing Data-Intensive Applications》第 7 章，终于懂隔离级别了。', off:true },
+  { id:'c12', type:'diary',  name:'diary/2025-09.md', text:'2025-09-20 项目交接给学弟了，有点舍不得。', off:true }
+];
+
+const SOURCE_LABEL = { resume:'简历', repo:'代码仓库', notes:'笔记', diary:'日记', social:'社交动态', linkedin:'LinkedIn' };
+const SOURCE_ICON  = { resume:'📄', repo:'⌥', notes:'📝', diary:'🔒', social:'💬', linkedin:'in' };
+
+/* ── 投喂方式 B：不写字，从已有材料里挑一段经历 ──
+   AI 先把 crumbs 聚成几段「可讲的经历」，每段都说清它是从哪几条材料聚出来的、
+   以及为什么值得挖。用户挑一个就能开始——一个字都不用写。 */
+const EXPERIENCES = [
+  { id:'e1', title:'校园二手交易平台 · 推荐系统', span:'2025.03 – 2025.09',
+    crumbs:['c2','c3','c4','c5','c6','c7'],
+    why:'材料最密的一段，但<b>缺口也最大</b>：6 条材料里有代码、有事故、有吵架记录，却<b>没有一条写了结局</b>。',
+    est:'预计能问出 5–6 轮', heat:'厚', recommend:true },
+  { id:'e2', title:'支付网关限流中间件（暑期实习）', span:'2024.06 – 2024.08',
+    crumbs:['c8','c9','c10'],
+    why:'有 repo 有踩坑笔记，但<b>只有 3 条材料</b>，而且简历上只留下一个头衔。适合快挖 3 轮补细节。',
+    est:'预计能问出 3–4 轮', heat:'中' },
+  { id:'e3', title:'把项目交接给学弟这件事', span:'2025.09',
+    crumbs:['c12','c8'],
+    why:'只有一条日记。<b>材料太薄，问出来的东西会主要靠你自己讲</b>——如果你想聊“带人/交接”，这段才值得。',
+    est:'预计能问出 2 轮', heat:'薄' }
+];
+
+/* 六个维度：只用来分组，不用来算完成度 */
+const DIMS = ['动机','角色边界','关键决策','量化结果','真实困难','判断与协作'];
+
+/* ── 新事实账本：每一条都是独立、可数、可撤回的条目 ──
+   dest='候补' 的条目不会自动进简历，但可以被用户手动拖进去（promote 是拖进去之后写成的那句话）。
+   这个字段就是后端 fact 表里的 `destination` + `promoted_text`。 */
+const HARVEST = {
+  h1:{ dim:'量化结果',  turn:'t1', text:'人均停留时长 +40%',                                   tags:['数字','业务指标'],  dest:'简历 ＋ 自我介绍' },
+  h2:{ dim:'量化结果',  turn:'t1', text:'日均 GMV 增量约 ¥12,000',                             tags:['数字','业务指标'],  dest:'简历 ＋ 自我介绍' },
+  h3:{ dim:'量化结果',  turn:'t2', text:'P99 800ms → 120ms（6.7×），冷启动 40s → 3s',          tags:['数字','性能'],      dest:'简历' },
+  h4:{ dim:'关键决策',  turn:'t2', text:'选分片 + mmap 懒加载而非扩容，依据是实测峰值 QPS 仅 300', tags:['取舍','成本意识'],  dest:'简历' },
+  h5:{ dim:'真实困难',  turn:'t2', text:'Faiss 全量索引常驻内存导致冷启动 40s',                 tags:['事故','根因'],      dest:'候补',
+       promote:'Root-caused a production P99 regression to a fully memory-resident Faiss index producing a 40s cold start.' },
+  h6:{ dim:'关键决策',  turn:'t3', text:'用 2,000 条标注跑对照实验：BERT 只 +0.3pt AUC，推理成本 6×', tags:['实验','数字'],  dest:'简历 ＋ 自我介绍' },
+  h7:{ dim:'判断与协作',turn:'t3', text:'用数据而不是资历解决分歧，预算改投特征工程',            tags:['冲突','说服'],      dest:'简历' },
+  h10:{dim:'判断与协作',turn:'t3', text:'把对照实验结果做成一张表，当面拍给对方看',              tags:['沟通','证据'],      dest:'候补',
+       promote:'Resolved a senior-vs-junior technical disagreement by presenting a side-by-side benchmark table instead of escalating.' },
+  h8:{ dim:'角色边界',  turn:'t4', text:'后 3 个月带 2 名初级开发，负责任务拆解与 code review（100+ PR）', tags:['带人','数字'], dest:'简历' },
+  h9:{ dim:'动机',      turn:'t6', text:'自己挂闲置两周无人问津 → 翻点击日志发现 70% 流量集中在首页前 20 个商品 → 主动写提案', tags:['起因','主动性'], dest:'简历 ＋ 自我介绍' }
+};
+const isCand = id => (HARVEST[id].dest || '').startsWith('候补');
+
+/* ── grill 回合 ──
+   grip：把握度不再是一个凭空的百分比，而是「材料里有几条提到过」——可数、可点。 */
+const TURNS = [
+  { id:'t1', round:1, dim:'量化结果', status:'answered',
+    src:'jd', jdReq:['r7'], jdLine:'JD 第 7 条要「能用业务指标衡量自己的工作」。你的材料里有模型指标，<b>0 条</b>有业务指标。',
+    grip:{ lv:'低', ev:'8 条材料里 <b>1 条</b>提到过效果（X 动态给了 CTR），<b>0 条</b>提到业务侧发生了什么', refs:['c7'] },
+    question:'你说“效果还可以”——具体是哪个指标、从多少变到多少？除了模型指标，业务侧发生了什么？',
+    why:'你的 X 动态里已经写了 CTR 1.8%→3.1%，所以这一段我不问。我不确定的是：这个提升换算成业务是什么。八份材料里没有一份提到过。',
+    guess:'CTR 提升了约 1.3 个百分点；业务侧可能有停留时长或 GMV 的变化？',
+    answer:'CTR 从 1.8% 到 3.1%。另外人均停留时长 +40%，上线后日均 GMV 多了大概 1.2 万。',
+    harvest:['h1','h2'] },
+
+  { id:'t2', round:2, dim:'关键决策', status:'answered',
+    src:'jd', jdReq:['r2','r3','r4'], jdLine:'JD 有 3 条压在这上面（高并发 / 性能优化 / 独立排查）。你的笔记只写了现象，<b>结局和取舍一条都没有</b>。',
+    grip:{ lv:'低', ev:'<b>1 条</b>笔记记了这次事故，但<b>0 条</b>写了结局，也<b>0 条</b>写了为什么这么选', refs:['c5'] },
+    question:'notes-2025.md 里 5 月 18 号那次 P99 炸了、冷启动 40s——最后是怎么收场的？这个方案是谁提的？',
+    why:'你的笔记只记录了问题，没有结局。而“为什么选了这个方案、而不是加机器”这件事，只有你自己知道。',
+    guess:'改成了增量索引或者分片加载？',
+    answer:'我把全量 Faiss 换成分片 + mmap 懒加载，P99 从 800ms 降到 120ms，冷启动 40s → 3s。方案是我提的——我算过我们 QPS 峰值只有 300，没必要全内存，加机器是浪费预算。',
+    harvest:['h3','h4','h5'] },
+
+  { id:'t3', round:3, dim:'判断与协作', status:'answered',
+    src:'jd', jdReq:['r6','r9','r11'], jdLine:'JD 第 9 条要「跨团队沟通与说服」、第 11 条要「资源受限时的成本权衡」。这两条在材料里<b>各 0 条证据</b>。',
+    grip:{ lv:'低', ev:'<b>1 条</b>日记提到你们吵过一架，<b>0 条</b>写了最后谁的方案落地、你拿什么说服的', refs:['c6'] },
+    question:'日记里你和师兄为“要不要上 BERT”吵过一架。最后谁的方案落地了？你拿什么说服（或被说服）的？',
+    why:'这是唯一一条被你自己标成“吵架”的记录。争执点通常是你判断力最集中的地方，也是面试官最爱追问的地方。',
+    guess:'你赢了，理由是标注数据不够？',
+    answer:'算各退一步。我拿 2000 条人工标注跑了个对照实验：BERT 比 LightGBM 只高 0.3 个点 AUC，但推理成本是 6 倍。我把这张表拍给他看，他就同意先不上了，我们把预算挪去做特征工程。',
+    harvest:['h6','h7','h10'] },
+
+  { id:'t4', round:4, dim:'角色边界', status:'answered',
+    src:'jd', jdReq:['r8'], jdLine:'JD 第 8 条要「带人 / code review 经验」。12 条材料里 <b>0 条</b>提到带人——但你日记里出现过「交接给学弟」。',
+    grip:{ lv:'中', ev:'<b>2 条</b>材料写了你的头衔（“后端开发”/“Intern”），<b>0 条</b>说清你带没带人', refs:['c2','c8'] },
+    question:'“做了大概半年”——这半年里你一直是一个人干，还是后期带过人？',
+    why:'“负责后端和一部分模型”这句话把你的角色说小了。带人 / 不带人是简历上完全不同的两个层级，而所有材料对此都沉默。',
+    guess:'大部分时间独立开发，后期可能带过一两个学弟？',
+    answer:'后三个月带了两个大二的学弟，我负责拆任务和 code review，前后 review 了 100 多个 PR。',
+    harvest:['h8'] },
+
+  { id:'t5', round:5, dim:'动机', status:'flagged_useless',
+    src:'general', jdReq:[], jdLine:'',
+    grip:{ lv:'中', ev:'（这一轮我没找准方向：<b>0 条</b>具体依据，问了一个泛问题。）', refs:[] },
+    question:'你能再多讲讲这个项目吗？',
+    why:'', guess:'', answer:'', harvest:[] },
+
+  { id:'t6', round:6, dim:'动机', status:'answered',
+    src:'general', jdReq:['r10'], jdLine:'这一题不是 JD 逼出来的 —— 预算里留了 2 轮打「只有你有」的东西。动机 JD 不会写，但它决定这段听起来是“完成任务”还是“主动解决问题”。',
+    grip:{ lv:'低', ev:'<b>0 条</b>材料提到这个项目是怎么开始的——动机只存在你脑子里', refs:[] },
+    question:'当初为什么是你去做这个推荐系统？是被分配的，还是你主动争取的？',
+    why:'上一题被你标成没意义——你说得对，那是个空问。换个只有你能回答的：动机决定了这段经历讲出来是“完成任务”还是“主动解决问题”。',
+    guess:'实验室分配的任务？',
+    answer:'其实是我主动提的。平台当时只有按时间排序，我自己挂东西两周没人问，就去翻了后台点击日志，发现七成流量都堆在首页前 20 个商品上，然后写了个提案给老师。',
+    harvest:['h9'] }
+];
+
+/* ── 成稿。金色片段用 hs 硬绑到它依赖的新事实条目 ── */
+const ARTIFACT = {
+  /* bullet_req[i] = 第 i 条 bullet 回答了 JD 的哪几条要求 */
+  bullet_req: [['r5','r7'], ['r2','r3','r4'], ['r6','r11','r9'], ['r8'], ['r10'], []],
+  promoted_req: { h5:['r4'], h10:['r9'] },
+  resume_bullets: [
+    [
+      { t:'Built and shipped a two-tower retrieval + LightGBM ranking recommender for a campus C2C marketplace serving 120k requests/day,', o:'source', ref:'c4' },
+      { t:'lifting CTR from 1.8% to 3.1%', o:'source', ref:'c7' },
+      { t:'while driving +40% average session time and ~¥12k incremental daily GMV.', o:'grill', turn:'t1', hs:['h1','h2'] }
+    ],
+    [
+      { t:'Traced a production P99 regression to the Faiss index being loaded fully into memory (40s cold start),', o:'source', ref:'c5' },
+      { t:'benchmarked peak QPS at ~300 and shipped a sharded + mmap lazy-loading design instead of scaling hardware, cutting P99 from 800ms to 120ms (6.7×) and cold start to 3s.', o:'grill', turn:'t2', hs:['h3','h4'] }
+    ],
+    [
+      { t:'Faced a team push to adopt BERT despite limited labeled data;', o:'source', ref:'c6' },
+      { t:'ran a controlled experiment on 2,000 hand-labeled samples showing BERT gained only +0.3pt AUC at 6× inference cost,', o:'grill', turn:'t3', hs:['h6'] },
+      { t:'and redirected the remaining budget to feature engineering.', o:'grill', turn:'t3', hs:['h7'] }
+    ],
+    [
+      { t:'Mentored 2 junior engineers over the final 3 months, owning task breakdown and reviewing 100+ pull requests.', o:'grill', turn:'t4', hs:['h8'] }
+    ],
+    [
+      { t:'Originated the project: after noticing 70% of traffic concentrated on the top 20 homepage listings, wrote and pitched the proposal that became this system.', o:'grill', turn:'t6', hs:['h9'] }
+    ],
+    [
+      { t:'Collaborated cross-functionally with product and design stakeholders to align on roadmap priorities.', o:'inferred', verified:false,
+        note:'这句在你的八份材料和六轮对话里都找不到出处——是我自己补的套话。请确认或删掉。' }
+    ]
+  ],
+  self_intro: [
+    { t:'我是 Chen，计算机专业，做后端，也做一点推荐。', o:'source', ref:'c1' },
+    { t:'我最近的一段经历是把学校二手交易平台从“按时间排序”做成了一套真正的推荐系统——', o:'source', ref:'c2' },
+    { t:'起因很土：我自己挂了两周东西没人问，去翻点击日志才发现七成流量都堆在首页前 20 个商品上，于是写了提案。', o:'grill', turn:'t6', hs:['h9'] },
+    { t:'上线后 CTR 从 1.8% 到 3.1%，', o:'source', ref:'c7' },
+    { t:'日均 GMV 多了一万二。', o:'grill', turn:'t1', hs:['h2'] },
+    { t:'过程中我最满意的其实不是模型，是一次成本判断：团队想上 BERT，我用 2000 条标注跑对照实验，证明它只多 0.3 个点却要 6 倍推理成本，把预算省下来做了特征工程。', o:'grill', turn:'t3', hs:['h6','h7'] },
+    { t:'我擅长在资源有限的时候，先量一量再决定要不要花钱。', o:'inferred', verified:true,
+      note:'这句是我从你三次回答里归纳的一句总结，原话里没有——你可以改成自己的说法。' }
+  ],
+  /* 7 蓝 + 9 金 + 2 红 = 18 个片段。标题里的「9 处」必须和这里对得上，现场一数不能穿帮 */
+  stats:{ n_source:7, n_grill:9, n_inferred:2 }
+};
+
+/* 产出物类型（格式）—— 和「为谁做」是正交的两件事 */
+const GOALS = ['简历 bullet','LinkedIn About','60 秒自我介绍','个人网站项目页'];
+
+/* ── Target：一个 JD / 一个机会 ──
+   requirement 的四种状态由 reqState() 算出来：
+     strong  已有证据（ev 里的 crumb），或 fills 里的事实已经挖到了
+     weak    只有沾边的证据（weak.text 说清差在哪）
+     none    还没有，但问得出来（fills 指明问出哪几条就能补上）
+     gap     你确实没有 —— 永远补不上，绝不为它生成文案
+   最后那一种是这一版最重要的东西：JD 是检查表，不是模板。 */
+const TARGETS = [
+  { id:'tg1', kind:'实习', title:'后端开发实习生', org:'某大厂 · 基础架构', when:'3 天前收藏', primary:true,
+    raw:'岗位职责：参与后端服务的设计与开发，负责推荐/搜索链路的性能优化与稳定性建设。\n任职要求：见下。',
+    reqs:[
+      { id:'r1',  kind:'hard', text:'熟悉 Python / Go，有后端服务开发经验', ev:['c3','c2'] },
+      { id:'r2',  kind:'hard', text:'有高并发系统的实践经验',
+        weak:{ text:'README 写了「日均 12w 请求」，但没有峰值 QPS、没有延迟数字', refs:['c4'] }, fills:['h3'] },
+      { id:'r3',  kind:'hard', text:'熟悉常见性能优化手段（缓存 / 索引 / 懒加载）', fills:['h4'] },
+      { id:'r4',  kind:'hard', text:'具备独立排查线上问题的能力',
+        weak:{ text:'笔记里记了一次 P99 事故，但只有现象、没有根因和结局', refs:['c5'] }, fills:['h5'] },
+      { id:'r5',  kind:'pref', text:'有推荐 / 搜索方向的项目经验', ev:['c4','c2'] },
+      { id:'r6',  kind:'pref', text:'有机器学习模型落地经验',
+        weak:{ text:'repo 里出现过 LightGBM，但看不出你怎么选型、效果如何', refs:['c3'] }, fills:['h6'] },
+      { id:'r7',  kind:'pref', text:'能用业务指标衡量自己的工作', fills:['h1','h2'] },
+      { id:'r8',  kind:'pref', text:'有带人 / code review 经验', fills:['h8'] },
+      { id:'r9',  kind:'pref', text:'良好的跨团队沟通与说服能力', fills:['h7','h10'] },
+      { id:'r10', kind:'implicit', text:'主动发现问题并推动解决', fills:['h9'] },
+      { id:'r11', kind:'implicit', text:'资源受限时能做成本权衡', fills:['h4','h6'] },
+      { id:'r12', kind:'hard', text:'2026 届本科及以上，计算机相关专业', ev:['c1'] },
+      { id:'r13', kind:'hard', text:'熟悉 Kubernetes / 容器化部署', gap:true },
+      { id:'r14', kind:'pref', text:'有消息队列（Kafka / Pulsar）使用经验', gap:true }
+    ]},
+  { id:'tg2', kind:'RA', title:'推荐系统方向 Research Assistant', org:'XX 实验室', when:'上周收藏',
+    raw:'招募方向：推荐系统的召回与排序；需要能独立做实验设计。',
+    reqs:[
+      { id:'q1', kind:'hard', text:'有推荐 / 信息检索方向的项目经验', ev:['c4','c2'] },
+      { id:'q2', kind:'hard', text:'熟悉召回 + 排序的经典架构', ev:['c4'] },
+      { id:'q3', kind:'hard', text:'能独立完成实验设计与对照分析', fills:['h6'] },
+      { id:'q4', kind:'pref', text:'有处理真实业务数据的经验',
+        weak:{ text:'README 有请求量，但没有真实业务侧的结果', refs:['c4'] }, fills:['h1','h2'] },
+      { id:'q5', kind:'pref', text:'能读英文论文并复现', gap:true },
+      { id:'q6', kind:'pref', text:'有稳定产出（论文 / 开源 / 技术博客）', gap:true },
+      { id:'q7', kind:'implicit', text:'能长期投入（≥ 6 个月）',
+        weak:{ text:'简历显示这个项目做了 7 个月，但没写你后来还在不在', refs:['c2'] } },
+      { id:'q8', kind:'implicit', text:'自驱，能自己找问题', fills:['h9'] }
+    ]},
+  { id:'tg3', kind:'合伙人', title:'技术合伙人 / 早期团队', org:'—', entryOnly:true,
+    raw:'', reqs:[] }
+];
+const REQ_KIND = { hard:'硬性', pref:'优先', implicit:'隐含' };
+
+/* 同频的人 —— placeholder。匹配只发生在标签层，不碰 crumbs 原文。 */
+const PEERS = [
+  { id:'p1', handle:'@lin_infra', line:'后端 / 存储 · 在做一个校内拼车的匹配服务',
+    overlap:['成本意识','根因','事故'],
+    theirs:'为了省钱没上 K8s，自己写了个 systemd + 健康检查的土方案，跑了半年没挂。',
+    mineHint:'你的「选分片 + mmap 懒加载而非扩容」和这条是同一种判断' },
+  { id:'p2', handle:'@zoe_ml', line:'ML · 正在写一篇关于小样本排序的本科毕设',
+    overlap:['实验','数字','取舍'],
+    theirs:'拿 1500 条标注跑了对照，发现复杂模型在小数据上根本打不过 GBDT。',
+    mineHint:'你第 3 轮那条「BERT +0.3pt / 6× 成本」几乎是同一个结论' },
+  { id:'p3', handle:'@harper_pm', line:'产品 · 在找会做推荐的技术伙伴',
+    overlap:['起因','主动性','业务指标'],
+    theirs:'我做的第一个功能也是因为自己是用户、自己被恶心到了才做的。',
+    mineHint:'你第 6 轮讲的「自己挂闲置两周没人问」是同一类起点' }
+];
+
+/* 可见性三层 —— placeholder，默认最严 */
+const VISIBILITY = [
+  { key:'private',   name:'材料原文', desc:'日记、笔记、私有 repo 的原文', state:'永不参与匹配', locked:true },
+  { key:'matchable', name:'标签签名', desc:'只有 #成本意识 这类标签，不含事实原文', state:'参与匹配', on:true },
+  { key:'public',    name:'事实原文', desc:'某一条事实的具体内容', state:'逐条手动放行 · 现在 0 条', on:false }
+];
+
+/* ── Dashboard 的历史数据 ──
+   以「经历」为单位组织：一段经历下面挂着它的事实、轮次、产出物。
+   thread（第几场拷问）退成经历的一个属性，不再是顶层分类。 */
+const PAST_EXP = [
+  { id:'x2', title:'开源项目 campus-rec 的 README 重写', span:'2025.10',
+    crumbs:2, rounds:'4 / 4', when:'3 天前', state:'done',
+    dims:{ '动机':2, '角色边界':1, '判断与协作':3, '量化结果':2 },
+    arts:['个人网站项目页 v2','LinkedIn About'],
+    facts:[
+      { dim:'动机',     text:'重写 README 是因为有人提 issue 说看不懂怎么跑', tags:['起因'],        dest:'项目页', from:'第 1 轮' },
+      { dim:'判断与协作',text:'把 quickstart 压到 3 条命令，剩下的挪进 FAQ',   tags:['沟通','取舍'], dest:'项目页', from:'第 3 轮' },
+      { dim:'量化结果', text:'重写后两周内 star +40，issue 里“跑不起来”归零',  tags:['数字'],        dest:'项目页', from:'第 4 轮' }
+    ]},
+  { id:'x3', title:'支付网关限流中间件（暑期实习）', span:'2024.06 – 2024.08',
+    crumbs:3, rounds:'2 / 6', when:'上周', state:'thin',
+    dims:{ '关键决策':1, '真实困难':1, '量化结果':1 },
+    arts:[],
+    facts:[
+      { dim:'量化结果', text:'限流上线后网关 5xx 从 0.9% 降到 0.05%',       tags:['数字','稳定性'], dest:'简历', from:'第 1 轮' },
+      { dim:'关键决策', text:'选令牌桶而非漏桶：突发流量是那个业务的常态',   tags:['取舍'],          dest:'简历', from:'第 2 轮' },
+      { dim:'真实困难', text:'压测环境和线上流量分布不一致，前两次调参全废', tags:['事故','根因'],   dest:'候补', from:'第 2 轮' }
+    ]}
+];
+const PAST_ARTIFACTS = [
+  { id:'a_02', title:'个人网站 · campus-rec 项目页', kind:'项目页', exps:['开源项目 campus-rec 的 README 重写'], when:'3 天前', prov:[9,7,1] },
+  { id:'a_03', title:'LinkedIn About（英文）',       kind:'LinkedIn', exps:['开源项目 campus-rec 的 README 重写'], when:'3 天前', prov:[5,4,2] },
+  { id:'a_04', title:'面试自我介绍 · 60 秒（草稿）', kind:'自我介绍', exps:['支付网关限流中间件（暑期实习）'],     when:'上周',  prov:[4,2,3] }
+];
+
+const CRUMB_BY_ID = Object.fromEntries(CRUMBS.map(c=>[c.id,c]));
+const TURN_BY_ID  = Object.fromEntries(TURNS.map(t=>[t.id,t]));
+</script>
+<script>
+/* ============================================================
+   Grill Your Crumbs — 交互原型
+   五屏：landing → dash → setup → wb → done →（回）dash
+
+   状态：
+     screenName   当前屏
+     intakeWay    'write' 自己写 / 'pick' 从材料里挑
+     cursor       正在问第几题
+     sessionCrumbs 本场装载了哪些材料（可拖进拖出）
+     active       生效中的新事实 id  ← 撤回、计数、稿子长短全靠它
+     promoted     被手动拖进简历的候补事实 id
+     killed       被删掉的无出处片段
+     panelState   四个面板各自的 min/norm/max
+
+   稿子不是另一份状态：每个金色片段绑着 hs（依赖哪几条事实），
+   每个蓝色片段绑着 ref（依赖哪条材料）。集合一变，稿子自己跟着变。
+   ============================================================ */
+const $  = s => document.querySelector(s);
+const $$ = s => [...document.querySelectorAll(s)];
+const el = (t,c,h)=>{const n=document.createElement(t);if(c)n.className=c;if(h!=null)n.innerHTML=h;return n;};
+const esc = t => String(t).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/"/g,'&quot;');
+const sleep = ms => new Promise(r=>setTimeout(r,ms));
+
+const SCREENS = ['landing','dash','opps','setup','wb','done'];
+let screenName = 'landing';
+let cursor = 0, rounds = [], answering = false, typing = null;
+let active = new Set(), promoted = new Set(), killed = new Set();
+let sessionCrumbs = new Set(CRUMBS.filter(c=>!c.off).map(c=>c.id));
+let undoStack = [], sessionSaved = false;
+let intakeWay = 'write', pickedExp = 'e1', ledgerKey = 'dim';
+let targetId = 'tg1', jdPasted = false;   // 本场的 Target（null = 不设目标）
+
+
+/* ═══════ 皮肤：同一个组件层，三套 token ═══════
+   调研依据写在 CSS 顶部。三套都必须守住蓝/金/红三色出处的语义。 */
+const SKINS_LIST = [
+  { key:'paper',    name:'编辑部',  note:'衬线标题 · 纸面 · 留白 —— 靠排版建立可信' },
+  { key:'terminal', name:'控制台',  note:'等宽 · 直角 · 发丝线 —— 把数据密集当成优点' },
+  { key:'bold',     name:'高饱和',  note:'品牌紫 · 大字重 · 圆润块面 —— 用记忆点对抗同质化' }
+];
+function applySkin(key){
+  const sk = SKINS_LIST.find(s=>s.key===key) || SKINS_LIST[0];
+  document.documentElement.dataset.skin = sk.key;
+  $$('.skinName').forEach(n=>n.textContent = sk.name);
+  return sk;
+}
+function cycleSkin(){
+  const cur = document.documentElement.dataset.skin || 'paper';
+  const i = SKINS_LIST.findIndex(s=>s.key===cur);
+  const sk = applySkin(SKINS_LIST[(i+1) % SKINS_LIST.length].key);
+  toast(`视觉：${sk.name} —— ${sk.note}`);
+}
+
+/* ═══════ 主题 ═══════ */
+function toggleTheme(){
+  const d = document.documentElement;
+  const next = d.dataset.theme === 'dark' ? 'light' : 'dark';
+  d.dataset.theme = next;
+  $$('.theme span').forEach(s=>s.textContent = next==='dark' ? '☀' : '◐');
+  toast(next==='dark' ? '深色：整套系统一起换，落地页也一样。' : '浅色：整套系统一起换，落地页也一样。');
+}
+
+/* ═══════ 面板系统 ═══════
+   三态循环：norm → min → norm；⤢ 单独切 max。列宽全在这里算。 */
+const PANELS = ['crumbs','grill','draft','ledger','target'];
+const PANEL_LABEL = { crumbs:'材料', grill:'拷问', draft:'简历活稿', ledger:'收获账本', target:'目标 JD' };
+const BASE = { crumbs:'minmax(196px,236px)', grill:'minmax(300px,1.05fr)',
+               draft:'minmax(320px,1.25fr)', ledger:'minmax(260px,0.95fr)',
+               target:'minmax(260px,0.95fr)' };
+const MAXW = { crumbs:'minmax(320px,0.9fr)', grill:'minmax(460px,2.4fr)',
+               draft:'minmax(460px,2.4fr)', ledger:'minmax(400px,2.2fr)',
+               target:'minmax(400px,2.2fr)' };
+/* 目标面板默认收起：Target 的「上下文」由顶部常驻条负责，
+   这个面板只在需要和简历并排比对时才展开。 */
+const PANEL_DEFAULT = { crumbs:'norm', grill:'norm', draft:'norm', ledger:'norm', target:'min' };
+let panelState = {...PANEL_DEFAULT};
+let barHidden = false;
+
+function layout(){
+  // 窄屏放不下四栏：自动把优先级低的收起，但用户的手动选择优先
+  const w = innerWidth;
+  const auto = {...panelState};
+  if(w < 1180 && auto.crumbs === 'norm' && !panelState._userCrumbs) auto.crumbs = 'min';
+  if(w < 900  && auto.ledger === 'norm' && !panelState._userLedger) auto.ledger = 'min';
+  if(w < 700  && auto.draft  === 'norm' && !panelState._userDraft)  auto.draft  = 'min';
+
+  $('#panels').style.gridTemplateColumns = PANELS
+    .map(k => auto[k]==='min' ? '46px' : auto[k]==='max' ? MAXW[k] : BASE[k]).join(' ');
+  PANELS.forEach(k=>{
+    $('#p-'+k).classList.toggle('min', auto[k]==='min');
+    const chip = $('#chip-'+k);
+    chip.classList.toggle('on', auto[k]!=='min');
+    chip.classList.toggle('big', auto[k]==='max');
+    chip.title = auto[k]==='min' ? `展开${PANEL_LABEL[k]}` : `收起${PANEL_LABEL[k]}`;
+  });
+}
+function cyclePanel(k){
+  panelState[k] = panelState[k]==='min' ? 'norm' : 'min';
+  panelState['_user'+k[0].toUpperCase()+k.slice(1)] = true;
+  layout();
+}
+function maxPanel(k){
+  const was = panelState[k]==='max';
+  PANELS.forEach(p=>{ if(panelState[p]==='max') panelState[p]='norm'; });
+  panelState[k] = was ? 'norm' : 'max';
+  if(!was) PANELS.forEach(p=>{ if(p!==k && panelState[p]==='min') return; });
+  layout();
+  toast(was ? `${PANEL_LABEL[k]}恢复正常宽度。` : `${PANEL_LABEL[k]}放大了。再点 ⤢ 恢复。`);
+}
+function openPanel(k){ if(panelState[k]==='min'){ panelState[k]='norm'; layout(); } }
+function resetLayout(){ panelState = {...PANEL_DEFAULT}; layout(); toast('布局重置了。目标面板默认收起——顶上那条已经告诉你这场是为谁做的。'); }
+function toggleBar(){
+  barHidden = !barHidden;
+  $('#panelbar').classList.toggle('hid', barHidden);
+  $('#barToggle').textContent = barHidden ? '▼ 展开面板条' : '▲ 收起面板条';
+}
+addEventListener('resize', ()=>{ if(screenName==='wb') layout(); });
+
+/* ═══════ 屏幕切换 ═══════ */
+function go(name){
+  screenName = name;
+  $$('.screen').forEach(s=>s.classList.toggle('on', s.id === 's-'+name));
+  if(name==='done')  renderReveal();
+  if(name==='dash')  renderDash();
+  if(name==='opps')  renderOpps();
+  if(name==='setup') renderSetup();
+  if(name==='wb'){ layout(); renderTarget(); $('#cpIn').focus({preventScroll:true}); }
+  drawSteppers();
+  const sc = $('.screen.on .scroll'); if(sc) sc.scrollTop = 0;
+}
+function drawSteppers(){
+  const labels = ['投喂','拷问','成果'], names = ['setup','wb','done'];
+  const cur = SCREENS.indexOf(screenName);
+  ['#stepper1','#stepper2','#stepper3'].forEach(sel=>{
+    const nav = $(sel); if(!nav) return;
+    nav.innerHTML = `<button class="step" onclick="go('dash')" title="回工作区"><b>⌂</b>工作区</button><span class="sep"></span>`
+      + labels.map((l,i)=>{
+        const idx = SCREENS.indexOf(names[i]);
+        const cls = idx===cur ? 'on' : (idx<cur ? 'done' : '');
+        return `<button class="step ${cls}" onclick="go('${names[i]}')"><b>${idx<cur?'✓':i+1}</b>${l}</button>`
+          + (i<2 ? '<span class="sep"></span>' : '');
+      }).join('');
+  });
+}
+
+/* ═══════ 片段 ═══════ */
+function segHTML(s, force){
+  if(s.o==='grill'){
+    const on = force || s.hs.every(h=>active.has(h));
+    return `<span class="sg grill${on?'':' ghost'}" data-turn="${s.turn}" data-hs='${JSON.stringify(s.hs)}'>${s.t}</span> `;
+  }
+  if(s.o==='inferred')
+    return `<span class="sg inferred" data-note="${esc(s.note)}">${s.t}${s.verified===false?'<span class="badge">无出处</span>':''}</span> `;
+  const orphan = !force && !sessionCrumbs.has(s.ref);
+  return `<span class="sg source${orphan?' orphan':''}" data-ref="${s.ref}">${s.t}${
+    orphan?'<span class="badge">出处已移出</span>':''}</span> `;
+}
+function promotedSeg(id){ return { t:HARVEST[id].promote, o:'grill', turn:HARVEST[id].turn, hs:[id] }; }
+function sheetHTML(force){
+  const base = ARTIFACT.resume_bullets.map((b,i)=>{
+    if(killed.has(i)) return '';
+    const bad  = b.some(s=>s.o==='inferred' && s.verified===false);
+    const thin = b.every(s=>s.o==='grill') && !b.some(s=>force||s.hs.every(h=>active.has(h)));
+    const shown = force || b.some(x=>x.o!=='grill' || x.hs.every(h=>active.has(h)));
+    const chips = shown ? jdChips((ARTIFACT.bullet_req[i]||[]).filter(rid=>{
+      const t2 = curTarget(); if(!t2) return false;
+      return reqState(t2.reqs.find(x=>x.id===rid)||{}) === 'ok';
+    })) : '';
+    return `<div class="bul${thin?' thin':''}" data-b="${i}"><span class="bd">—</span><span>${b.map(s=>segHTML(s,force)).join('')}
+      ${chips?`<div class="jdrow" style="padding-left:0">${chips}</div>`:''}
+      ${bad?`<div class="rowacts"><button class="mini del" onclick="killSeg(${i})">删掉这条</button>
+        <button class="mini" onclick="ev('confirm_segment')">我确认，属实</button></div>`:''}</span></div>`;
+  }).join('');
+  const extra = [...promoted].filter(id=>force||active.has(id)).map(id=>
+    `<div class="bul promoted" data-p="${id}"><span class="bd">—</span><span>${segHTML(promotedSeg(id),force)}
+      <span class="pbadge">你手动加的</span>${jdChips(ARTIFACT.promoted_req[id])}
+      <div class="rowacts"><button class="mini del" onclick="demote('${id}')">从简历移走</button></div></span></div>`).join('');
+  return { bul: base + extra, intro: ARTIFACT.self_intro.map(s=>segHTML(s,force)).join('') };
+}
+
+/* ═══════ 面板 ①：材料（本场使用中 / 材料库，可互拖） ═══════ */
+function crumbCard(c){
+  const on = sessionCrumbs.has(c.id);
+  return `<div class="src${on?'':' off'}" data-id="${c.id}" draggable="true">
+    <div class="top2"><span class="ic">${SOURCE_ICON[c.type]}</span>
+      <span class="nm">${c.name}</span><span class="n num" data-n="${c.id}">1</span></div>
+    <div class="tx">${c.text}</div>
+    <button class="pm2" onclick="toggleCrumb('${c.id}')" title="${on?'移出本场':'加进本场'}">${on?'−':'＋'}</button>
+  </div>`;
+}
+function renderCrumbs(){
+  const inS  = CRUMBS.filter(c=>sessionCrumbs.has(c.id));
+  const outS = CRUMBS.filter(c=>!sessionCrumbs.has(c.id));
+  $('#crumbsBody').innerHTML =
+    `<div class="crumbsec">
+       <div class="csec-h">本场使用中<span class="n on num">${inS.length}</span></div>
+       <div class="cdrop" id="dropIn" data-zone="in">${inS.map(crumbCard).join('') ||
+         '<p class="railnote" style="margin:6px 2px">一条都没有了。成稿里所有蓝色片段都会变成「出处已移出」。</p>'}</div>
+     </div>
+     <div class="crumbsec">
+       <div class="csec-h">材料库 · 没进本场<span class="n num">${outS.length}</span></div>
+       <div class="cdrop" id="dropOut" data-zone="out">${outS.map(crumbCard).join('') ||
+         '<p class="railnote" style="margin:6px 2px">全都装进本场了。</p>'}</div>
+     </div>
+     <p class="railnote">悬停右边稿子里的<b style="color:var(--blue)">蓝色</b>片段 → 这里对应那条会高亮。<br>
+       把材料拖出本场，引用它的句子会当场标红——<b>出处不在了，那句话就不再算「有出处」</b>。</p>`;
+  const used = {};
+  $$('#viewA .sg.source').forEach(s=>{used[s.dataset.ref]=(used[s.dataset.ref]||0)+1});
+  Object.entries(used).forEach(([id,n])=>{
+    const s = $(`.src[data-id="${id}"]`); if(!s) return;
+    s.classList.add('hit'); s.querySelector('.n').textContent = n;
+  });
+  $('#pcCrumbs').textContent = inS.length;
+  $('#minCrumbs').textContent = inS.length;
+}
+function toggleCrumb(id){
+  const on = sessionCrumbs.has(id);
+  const cited = $$(`#viewA .sg.source[data-ref="${id}"]`).length;
+  if(on) sessionCrumbs.delete(id); else sessionCrumbs.add(id);
+  undoStack.push({k:'crumb', id, was:on});
+  mountSheetKeepScroll(); syncSegs(false); renderCrumbs();
+  toast(on
+    ? (cited ? `移出本场。成稿里有 ${cited} 处引用了它，已标成「出处已移出」。`
+             : '移出本场了。成稿里没有句子引用它，所以稿子没变化。')
+    : '加进本场了。下一轮提问会把它算进「我读过的材料」。', ()=>undo());
+}
+function aim(ids){ $$('.src').forEach(s=>s.classList.toggle('aim', ids.includes(s.dataset.id))); }
+
+
+/* ═══════ Target（JD）══════════════════════════════════════
+   一条要求的状态完全由「你有没有证据」决定，不是由匹配分决定：
+     ok    已有材料证据，或者依赖的事实已经被挖到
+     weak  只有沾边的证据
+     none  还没有，但问得出来
+     gap   你确实没有 —— 绝不为它生成文案
+   最后一种是这一版的核心：JD 是检查表，不是模板。 */
+function curTarget(){ return targetId ? TARGETS.find(t=>t.id===targetId) : null; }
+/* 换目标的唯一入口：JD 对齐标记长在简历片段上，所以换目标必须重挂稿子，
+   否则会留下上一个 JD 的 ↳ JD #n 标记。 */
+function applyTarget(id){
+  targetId = id;
+  mountSheetKeepScroll(); syncSegs(false); renderTarget(); counts();
+}
+function reqState(r){
+  if(r.fills && r.fills.length && r.fills.every(h=>active.has(h))) return 'ok';
+  if(r.ev && r.ev.length) return 'ok';
+  if(r.weak) return 'weak';
+  return r.gap ? 'gap' : 'none';
+}
+function reqTally(t){
+  const n = { ok:0, weak:0, none:0, gap:0 };
+  (t ? t.reqs : []).forEach(r=>n[reqState(r)]++);
+  return n;
+}
+/* 这条要求是刚刚被这一轮补上的吗 —— 用来做「○ → ●」的翻牌动画 */
+function justFilled(r, ids){
+  return r.fills && r.fills.length && ids && r.fills.some(h=>ids.includes(h)) && reqState(r)==='ok';
+}
+const REQ_MARK = { ok:'✓', weak:'◐', none:'○', gap:'✕' };
+const REQ_WORD = { ok:'已对上', weak:'只有弱证据', none:'还没有 · 问得出来', gap:'你确实没有' };
+
+function renderTarget(justIds){
+  const t = curTarget();
+  const bar = $('#tbar');
+  if(!t){
+    bar.innerHTML = `<span class="lb">目标</span>
+      <span class="tt none2">这一场没有设定目标 —— 只做通用打磨</span>
+      <span class="score"><button class="gbtn" style="padding:3px 10px;font-size:11.5px" onclick="go('setup')">去挑一个目标</button></span>`;
+    $('#reqList').innerHTML = `<p class="reqnote">这一场没设目标。<br><br>
+      设了目标之后，这里会是一张<b>要求清单</b>：哪几条你已经有证据、哪几条只有你能补、哪几条你确实没有。
+      提问也会按缺口排优先级。</p>`;
+    $('#pcTarget').textContent = '—'; $('#minTarget').textContent = '—';
+    return;
+  }
+  const n = reqTally(t), total = t.reqs.length;
+  bar.innerHTML = `<span class="lb">目标</span>
+    <span class="tt">${t.title}<small>${t.org}</small></span>
+    <span class="score">
+      <button class="rstat ok jump"   onclick="jumpReq('ok')"><i class="d"></i>对上 <b>${n.ok}</b></button>
+      <button class="rstat weak jump" onclick="jumpReq('weak')"><i class="d"></i>弱 <b>${n.weak}</b></button>
+      <button class="rstat none jump" onclick="jumpReq('none')"><i class="d"></i>还能问出 <b>${n.none}</b></button>
+      <button class="rstat gap jump"  onclick="jumpReq('gap')"><i class="d"></i>确实没有 <b>${n.gap}</b></button>
+      <button class="gbtn" style="padding:3px 10px;font-size:11.5px" onclick="openPanel('target');maxPanel('target')">看清单 →</button>
+    </span>`;
+  $('#pcTarget').textContent = `${n.ok}/${total}`;
+  $('#minTarget').textContent = n.ok;
+
+  const order = ['none','weak','ok','gap'];
+  $('#reqList').innerHTML =
+    `<p class="reqnote">${t.title} · ${t.org}　共 <b>${total} 条</b>要求。<br>
+       这里报的是<b>可数的状态</b>，不是「匹配度 78%」。</p>`
+    + order.map(st=>{
+      const list = t.reqs.filter(r=>reqState(r)===st);
+      if(!list.length) return '';
+      return `<div class="reqsec"><h6>${REQ_WORD[st]}<span class="ln"></span>${list.length}</h6>`
+        + list.map(r=>{
+          const jf = justFilled(r, justIds);
+          const ev = (r.fills||[]).filter(h=>active.has(h));
+          return `<div class="req ${st}${jf?' just':''}" data-r="${r.id}">
+            <div class="rh"><span class="mk">${REQ_MARK[st]}</span>
+              <span class="rt">${r.text}</span>
+              <span class="kd ${r.kind}">${REQ_KIND[r.kind]}</span></div>
+            ${st==='ok' && ev.length ? `<div class="ev2">↳ 第 ${TURN_BY_ID[HARVEST[ev[0]].turn].round} 轮挖到：${ev.map(h=>HARVEST[h].text).join(' ／ ')}</div>` : ''}
+            ${st==='ok' && !ev.length && r.ev ? `<div class="ev2">↳ ${r.ev.map(c=>`<span class="tg src">${SOURCE_ICON[CRUMB_BY_ID[c].type]} ${CRUMB_BY_ID[c].name}</span>`).join('')}</div>` : ''}
+            ${st==='weak' ? `<div class="ev2">↳ <b>差在哪：</b>${r.weak.text}
+                ${(r.weak.refs||[]).map(c=>`<span class="tg src">${CRUMB_BY_ID[c].name}</span>`).join('')}
+                ${r.fills?`<button class="ask" onclick="askFor('${r.id}')">去问这条 →</button>`:''}</div>` : ''}
+            ${st==='none' ? `<div class="ev2">↳ 材料里 <b>0 条</b>证据，但这件事<b>问得出来</b>
+                <button class="ask" onclick="askFor('${r.id}')">去问这条 →</button></div>` : ''}
+            ${st==='gap' ? `<div class="ev2">↳ 这条<b>问不出来</b>——你确实没有。不会为它生成任何文案。</div>` : ''}
+          </div>`;
+        }).join('') + '</div>';
+    }).join('')
+    + (n.gap ? `<div class="gapnote"><b>那 ${n.gap} 条「确实没有」的，我们不会替你圆。</b><br>
+        市面上按 JD 改简历的工具会给你编一句出来。我们把它留在这儿，是因为
+        <b>你需要知道自己真正缺什么</b>——那是去补技能的信号，不是去补文案的信号。</div>` : '');
+}
+function jumpReq(st){
+  openPanel('target');
+  const t = curTarget(); if(!t) return;
+  const n = reqTally(t)[st];
+  if(!n){ toast(`「${REQ_WORD[st]}」现在是 0 条。`); return; }
+  const first = t.reqs.find(r=>reqState(r)===st);
+  const node = $(`.req[data-r="${first.id}"]`);
+  if(node){ node.scrollIntoView({block:'center',behavior:'smooth'});
+    node.style.outline='2px solid var(--fg)'; node.style.outlineOffset='2px';
+    setTimeout(()=>{node.style.outline='';}, 1300); }
+  toast(`${REQ_WORD[st]}：${n} 条`);
+}
+/* 从要求清单直接跳到会补上它的那一轮 */
+function askFor(rid){
+  const t = curTarget(); const r = t.reqs.find(x=>x.id===rid);
+  const turn = TURNS.find(tn=>tn.jdReq && tn.jdReq.includes(rid))
+            || TURNS.find(tn=>(tn.harvest||[]).some(h=>(r.fills||[]).includes(h)));
+  if(!turn){ toast('这条没有对应的问题——它属于「问不出来」那一类。'); return; }
+  openPanel('grill');
+  if(TURNS.indexOf(turn) < cursor){
+    peekTurn(turn.id);
+    toast(`第 ${turn.round} 轮已经问过了，它补的就是这一条。`);
+  }else{
+    toast(`这条会在<b>第 ${turn.round} 轮</b>问到：${turn.question.slice(0,34)}…`);
+  }
+}
+/* 简历片段上的 JD 对齐标记 —— 和三色出处正交的第二个轴 */
+function jdChips(reqIds){
+  const t = curTarget(); if(!t || !reqIds || !reqIds.length) return '';
+  return reqIds.map(id=>{
+    const r = t.reqs.find(x=>x.id===id); if(!r) return '';
+    const i = t.reqs.indexOf(r) + 1;
+    return `<span class="jdchip" data-req="${id}" title="JD 第 ${i} 条：${esc(r.text)}">↳ JD #${i}</span>`;
+  }).join('');
+}
+
+/* ═══════ 面板 ④：收获账本（原 Thread 成果已并入） ═══════
+   栏目 = 维度或标签；每条只标它来自第几轮，不重复问题本身。 */
+function setLedgerKey(k){
+  ledgerKey = k;
+  $('#lkDim').classList.toggle('on', k==='dim');
+  $('#lkTag').classList.toggle('on', k==='tag');
+  renderLedger();
+}
+function itemHTML(id, isNew){
+  const h = HARVEST[id], t = TURN_BY_ID[h.turn];
+  const cand = isCand(id) && !promoted.has(id);
+  const dest = promoted.has(id) ? '简历（你加的）' : h.dest;
+  return `<div class="item${cand?' cand':''}${isNew?' born':''}" data-i="${id}"${cand?' draggable="true"':''}>
+    ${cand?'<span class="grip2">⠿</span>':''}
+    <div class="tx">${h.text}</div>
+    <div class="tagrow">${
+      (ledgerKey==='dim' ? h.tags : [h.dim].concat(h.tags))
+        .map((x,i)=>`<span class="tg${ledgerKey==='tag'&&i===0?' dim':''}">#${x}</span>`).join('')}</div>
+    <div class="meta">
+      <button onclick="peekTurn('${h.turn}')" title="跳到左边那一轮">第 ${t.round} 轮 ↗</button>
+      <span class="s">·</span><span class="dest">→ ${dest}</span>
+      ${cand?`<span class="s">·</span><button class="add" onclick="promote('${id}')">拖进简历 ＋</button>`:''}
+      <span class="s">·</span><button class="undo" onclick="dropItem('${id}')">撤回</button>
+    </div></div>`;
+}
+function renderLedger(newIds){
+  const box = $('#ledger');
+  const ids = [...active];
+  let groups;
+  if(ledgerKey === 'dim'){
+    groups = DIMS.map(k => [k, ids.filter(id=>HARVEST[id].dim===k)]);
+  }else{
+    const seen = [];
+    ids.forEach(id=>HARVEST[id].tags.forEach(t=>{ if(!seen.includes(t)) seen.push(t); }));
+    groups = seen.map(k => [k, ids.filter(id=>HARVEST[id].tags.includes(k))]);
+  }
+  const open = new Set($$('#ledger .lgroup.open').map(g=>g.dataset.k));
+
+  const head = `<div style="display:flex;align-items:center;gap:8px;padding:0 2px 9px">
+      <span class="lgHint" style="padding:0">${ledgerKey==='dim'
+        ? '按<b>维度</b>分栏。空栏＝这场还没问到那个角度，不是「完成度 0%」。'
+        : '按<b>标签</b>分栏。同一条事实可以同时出现在几个标签下。'}</span></div>`;
+
+  box.innerHTML = head + (groups.length ? groups.map(([k, list])=>{
+    const isOpen = list.length && (open.has(k) || (newIds||[]).some(id=>
+      ledgerKey==='dim' ? HARVEST[id].dim===k : HARVEST[id].tags.includes(k)) || !open.size);
+    return `<div class="lgroup${list.length?'':' empty'}${isOpen?' open':''}" data-k="${k}">
+      <button class="lg-h" onclick="this.parentNode.classList.toggle('open')">
+        <span class="caret">▶</span><span class="k">${k}</span>
+        <span class="b${list.length?' has':''} num">${list.length}</span></button>
+      <div class="lg-b">${list.map(id=>itemHTML(id,(newIds||[]).includes(id))).join('')}</div></div>`;
+  }).join('') : `<p class="lgHint">还没有收获。<br>每答完一题，这里按栏目长出可数的条目——<b>问题本身在左边拷问栏，这里不重复一遍</b>。</p>`);
+
+  ['#pcLedger','#minLedger'].forEach(s=>$(s).textContent = active.size);
+  if(newIds && newIds.length){
+    const c = $('#pcLedger'); c.classList.remove('pulse'); void c.offsetWidth; c.classList.add('pulse');
+  }
+}
+
+/* ═══════ 面板 ③：计数 ═══════ */
+function syncSegs(anim){
+  $$('#viewA .sg.grill').forEach(s=>{
+    const hs = JSON.parse(s.dataset.hs);
+    const on = hs.every(h=>active.has(h));
+    const was = !s.classList.contains('ghost');
+    s.classList.toggle('ghost', !on);
+    const b = s.closest('.bul');
+    if(on && !was && anim){
+      s.classList.add('born'); setTimeout(()=>s.classList.remove('born'), 820);
+      if(b){ b.classList.remove('thin'); b.classList.add('flash'); setTimeout(()=>b.classList.remove('flash'),1100); }
+    }
+    if(b && !b.querySelector('.sg.source') && !b.querySelector('.sg.grill:not(.ghost)')) b.classList.add('thin');
+  });
+  counts();
+}
+function counts(){
+  const srcOK  = $$('#viewA .sg.source:not(.orphan)').length;
+  const orphan = $$('#viewA .sg.source.orphan').length;
+  const totalGrill = $$('#viewA .sg.grill').length;
+  const gold = $$('#viewA .sg.grill:not(.ghost)').length;
+  const inf  = ARTIFACT.stats.n_inferred - killed.size + orphan;
+  const total = srcOK + totalGrill + inf;
+  $('#cS').style.width = srcOK/total*100 + '%';
+  $('#cG').style.width = gold/total*100 + '%';
+  $('#cF').style.width = (totalGrill-gold)/total*100 + '%';
+  $('#nS').textContent = srcOK;
+  $('#nG').textContent = gold;
+  $('#nF').textContent = totalGrill - gold;
+  $('#nI').textContent = inf;
+  $('#denom').textContent = `共 ${total} 个片段 ⓘ`;
+  $('#pcDraft').textContent = gold;
+  $('#minDraft').textContent = gold;
+  $('#rounds').textContent = `${Math.min(cursor,TURNS.length)} / ${TURNS.length}`;
+  $('#minGrill').textContent = rounds.length;
+  $('#undoBtn').disabled = !undoStack.length;
+}
+
+/* ═══════ 面板 ②：grill ═══════ */
+function renderGrill(){
+  const g = $('#grill');
+  g.innerHTML = rounds.map(r=>{
+    const t = TURNS[r.ti];
+    const sub = r.kind==='flagged' ? '你判定：这问题没意义 → 已记为负样本'
+              : r.kind==='skipped' ? '（跳过）' : r.text;
+    return `<div class="past${r.kind==='flagged'?' dead':''}" data-ti="${r.ti}">
+      <button class="pu" onclick="undoRound(${r.ti})">撤回这一轮</button>
+      <div class="pq">第 ${t.round} 轮 · ${t.question}</div><div class="pa">${esc(sub)}</div></div>`;
+  }).join('');
+
+  if(cursor >= TURNS.length){
+    g.appendChild(el('div','finish',
+      `<h4>问完了。右边那份稿子，就是刚才这几轮的产物。</h4>
+       <p>没有“揭晓”动作——因为你一路都看着它长出来。</p>
+       <div style="margin-top:14px;display:flex;gap:8px;justify-content:center;flex-wrap:wrap">
+         <button class="act go" onclick="go('done')">看成果 →</button>
+         <button class="act" onclick="undo()">撤回上一轮</button></div>`));
+    tip0('问完了。也可以撤回任意一轮，稿子会跟着回退。');
+    g.scrollTop = g.scrollHeight; counts(); return;
+  }
+
+  const t = TURNS[cursor], dead = t.status==='flagged_useless';
+  g.appendChild(el('div','qcard',
+   `<div class="qc-h"><span class="dimtag">${t.dim}</span>第 ${t.round} 轮 · 共 ${TURNS.length} 轮
+      <span style="margin-left:auto"><span class="qsrc ${t.src}">${
+        t.src==='jd' && curTarget() ? 'JD 缺口驱动' : '通用维度'}</span></span></div>
+    <div class="qc-b">
+      <div class="q">${t.question}</div>
+      <div class="grip">
+        <span class="lv${t.grip.lv==='中'?' mid':''}">把握 ${t.grip.lv}</span>
+        <span class="ev">${t.grip.ev}</span>
+        ${t.grip.refs.length?`<button class="ref" onclick="showRefs(${JSON.stringify(t.grip.refs).replace(/"/g,'&quot;')})">看是哪 ${t.grip.refs.length} 条 →</button>`:''}
+      </div>
+      ${(!dead && t.jdLine && curTarget() && t.src==='jd')?`<div class="jdwhy"><span class="h6">这一题是 JD 逼出来的</span>${t.jdLine}</div>`:''}
+      ${(!dead && t.src==='general' && curTarget())?`<div class="jdwhy" style="border-left-color:var(--gold);background:var(--gold-bg);color:var(--gold-ink)"><span class="h6" style="color:var(--gold)">这一题不是 JD 逼出来的</span>${t.jdLine||'预算里留了 2 轮打「只有你有」的东西——只盯着 JD 会把你身上最独特的部分漏掉。'}</div>`:''}
+      ${dead?'':`<div class="why"><b>我为什么问这个</b>${t.why}</div>
+      <div class="guess"><b>我的猜测 · 点头就行，不用从头写</b><div class="gbox">${t.guess}</div></div>`}
+    </div>`));
+  g.appendChild(el('div','acts', dead
+    ? `<button class="act bad" style="background:var(--red-bg);border-color:var(--red-bd);color:var(--red);font-weight:600"
+        onclick="flagBad()">这问题没意义 ✕</button>
+       <button class="act" onclick="skip()">跳过这题</button>`
+    : `<button class="act go" onclick="startAnswer()">我来补充</button>
+       <button class="act" onclick="acceptGuess()">就按你猜的算</button>
+       <button class="act" onclick="skip()">跳过这题</button>
+       <button class="act bad" onclick="flagBad()">这问题没意义</button>`));
+  if(curTarget()){
+    const used = rounds.map(r=>TURNS[r.ti].src);
+    g.appendChild(el('div','budget',
+      `<span>提问预算 <b>4 : 2</b>（JD 缺口 : 只有你有）</span>
+       <span class="bseg">${TURNS.map((tn,i)=>
+         `<i class="bs2 ${tn.src==='jd'?'jd':'gen'}${i>=cursor?' pend':''}" title="第 ${tn.round} 轮 · ${tn.src==='jd'?'JD 驱动':'通用维度'}"></i>`).join('')}</span>
+       <span>已用 ${used.filter(x=>x==='jd').length} : ${used.filter(x=>x==='general').length}</span>`));
+  }
+  answering = false;
+  tip0(dead ? '这一轮它问砸了——点「这问题没意义」，它会承认并换一个。'
+            : '想自己说？直接在下面的输入框里写，回车发送。');
+  g.scrollTop = g.scrollHeight;
+  counts();
+}
+function showRefs(ids){ openPanel('crumbs'); aim(ids); toast(`高亮了 ${ids.length} 条材料 —— 它就是靠这几条判断自己有没有把握。`); }
+
+/* ═══════ 常驻输入框 ═══════ */
+function tip0(m){ $('#cpTip').classList.remove('hot'); $('#cpTipTxt').textContent = m; }
+function tipHot(m){ $('#cpTip').classList.add('hot'); $('#cpTipTxt').textContent = m; }
+function composerReady(on){
+  $('#cpSend').classList.toggle('ready', on);
+  if(on){ $('#cpSend').classList.remove('pulse'); void $('#cpSend').offsetWidth; $('#cpSend').classList.add('pulse'); }
+}
+function typeInto(text){
+  return new Promise(res=>{
+    const box = $('#cpBox'), inp = $('#cpIn');
+    if(typing) clearInterval(typing);
+    box.classList.add('typing'); inp.textContent = '';
+    const car = el('span','car'); inp.appendChild(car);
+    let i = 0;
+    typing = setInterval(()=>{
+      if(i >= text.length){
+        clearInterval(typing); typing = null; car.remove();
+        box.classList.remove('typing'); composerReady(true);
+        tipHot('写好了 → 按「发送」，或者继续改。'); res(); return;
+      }
+      car.insertAdjacentText('beforebegin', text[i++]);
+      inp.scrollTop = inp.scrollHeight;
+    }, 15);
+  });
+}
+async function startAnswer(){
+  if(cursor >= TURNS.length || answering) return;
+  openPanel('grill');
+  tipHot('正在把你的回答打进输入框…（演示：真实产品里这里是你自己敲）');
+  $('#cpIn').focus({preventScroll:true});
+  await typeInto(TURNS[cursor].answer);
+}
+async function acceptGuess(){
+  if(cursor >= TURNS.length || answering) return;
+  tipHot('把它的猜测填进输入框——你可以直接发，也可以先改两个字。');
+  await typeInto(TURNS[cursor].guess.replace(/[？?]$/,'，对。'));
+  await sleep(520); send();
+}
+function send(){
+  if(cursor >= TURNS.length){ toast('已经问完了。可以去成果页，或者撤回某一轮再答一次。'); return; }
+  if(answering) return;
+  const text = $('#cpIn').textContent.trim();
+  if(!text){ toast('先写点什么 —— 或者点上面的「就按你猜的算」，我会替你填。'); $('#cpIn').focus(); return; }
+  if(TURNS[cursor].status === 'flagged_useless'){
+    toast('这一轮我问砸了，你写什么我都接不住。点「这问题没意义」我换一个。'); return;
+  }
+  commit(text);
+}
+async function commit(text){
+  answering = true;
+  const t = TURNS[cursor];
+  $('#grill .acts')?.remove();
+  const card = $('#grill .qcard');
+  const ub = el('div','ublock',
+    `<button class="uu" onclick="undo()">撤回</button>
+     <div class="uh"><span class="av">你</span>你的回答</div>
+     <div class="ut">${esc(text)}</div>`);
+  card.querySelector('.qc-b').appendChild(ub);
+  $('#cpIn').textContent = ''; composerReady(false);
+  $('#grill').scrollTop = $('#grill').scrollHeight;
+
+  const ids = t.harvest.slice();
+  ids.forEach(id=>active.add(id));
+  undoStack.push({k:'round', ti:cursor, kind:'answered', text, ids});
+
+  await sleep(420);
+  const nCand = ids.filter(isCand).length;
+  ub.appendChild(el('div','harv',
+    `<span class="hl">拆出 ${ids.length} 条 →</span>`
+    + ids.map(id=>`<span class="tg dim">#${HARVEST[id].dim}</span>`).join('')
+    + (nCand?`<span class="tg">${nCand} 条列为候补</span>`:'')));
+  renderLedger(ids); mountSheetKeepScroll(); syncSegs(true); renderTarget(ids);
+  const nFill = curTarget() ? curTarget().reqs.filter(r=>justFilled(r,ids)).length : 0;
+  if(nFill) setTimeout(()=>toast(`这一轮补上了 JD 的 ${nFill} 条要求。`), 900);
+  bump(`+${ids.length} 条 · 稿子里 ${$$('#viewA .sg.grill:not(.ghost)').length} 处金色`);
+  tipHot(`记进账本了：${ids.length} 条。不满意随时撤回，稿子会跟着退回去。`);
+  $('#grill').scrollTop = $('#grill').scrollHeight;
+
+  await sleep(1500);
+  rounds.push({ti:cursor, kind:'answered', text});
+  cursor++; renderGrill();
+}
+function skip(){
+  if(cursor >= TURNS.length || answering) return;
+  undoStack.push({k:'round', ti:cursor, kind:'skipped', text:'', ids:[]});
+  rounds.push({ti:cursor, kind:'skipped', text:''});
+  cursor++; renderGrill();
+  toast('跳过了。跳过不会丢——回头还能从「撤回上一步」倒回来。');
+}
+function flagBad(){
+  if(cursor >= TURNS.length || answering) return;
+  undoStack.push({k:'round', ti:cursor, kind:'flagged', text:'', ids:[]});
+  rounds.push({ti:cursor, kind:'flagged', text:''});
+  cursor++; renderGrill();
+  toast('已写入 events.jsonl → Good-Question-Rate 负样本。评测集长在交互里，不用另外标注。');
+}
+
+/* ═══════ 候补 → 简历 ═══════ */
+function promote(id){
+  if(!active.has(id)){ toast('这条已经被撤回了，先放回来再加。'); return; }
+  if(promoted.has(id)){ toast('它已经在简历里了。'); return; }
+  promoted.add(id); openPanel('draft');
+  mountSheetKeepScroll(); syncSegs(true); renderLedger(); counts(); renderTarget();
+  const b = $(`.bul[data-p="${id}"]`);
+  if(b){ b.classList.add('flash'); b.scrollIntoView({block:'center',behavior:'smooth'});
+         setTimeout(()=>b.classList.remove('flash'),1100); }
+  undoStack.push({k:'promote', id});
+  toast(`「${HARVEST[id].text.slice(0,13)}…」写进简历了。出处仍然绑着第 ${TURN_BY_ID[HARVEST[id].turn].round} 轮。`, ()=>undo());
+}
+function demote(id){
+  if(!promoted.has(id)) return;
+  promoted.delete(id);
+  mountSheetKeepScroll(); syncSegs(false); renderLedger(); counts(); renderTarget();
+  undoStack.push({k:'demote', id});
+  toast('移回候补了。事实还在账本里，只是不进这份简历。', ()=>undo());
+}
+
+/* ═══════ 撤回 ═══════ */
+function undo(){
+  const u = undoStack.pop();
+  if(!u){ toast('没有可撤回的了。'); return; }
+  if(u.k === 'round'){
+    u.ids.forEach(id=>{ active.delete(id); promoted.delete(id); });
+    const i = rounds.findIndex(r=>r.ti===u.ti);
+    if(i >= 0) rounds.splice(i,1);
+    cursor = u.ti; answering = false;
+    renderGrill(); renderLedger(); mountSheetKeepScroll(); syncSegs(false); renderTarget(); renderTarget();
+    toast(`撤回了第 ${TURNS[u.ti].round} 轮${u.ids.length?`，账本少了 ${u.ids.length} 条，稿子里对应的金色片段已退回骨架`:''}。`);
+  } else if(u.k === 'item'){
+    active.add(u.id); renderLedger([u.id]); mountSheetKeepScroll(); syncSegs(true);
+    toast(`「${HARVEST[u.id].text.slice(0,14)}…」放回来了。`);
+  } else if(u.k === 'kill'){
+    killed.delete(u.i); mountSheetKeepScroll(); syncSegs(false);
+    toast('那句无出处的套话放回来了。');
+  } else if(u.k === 'promote'){
+    promoted.delete(u.id); mountSheetKeepScroll(); syncSegs(false); renderLedger();
+    toast('从简历里移走了，事实仍然留在账本。');
+  } else if(u.k === 'demote'){
+    promoted.add(u.id); mountSheetKeepScroll(); syncSegs(true); renderLedger();
+    toast('又加回简历了。');
+  } else if(u.k === 'crumb'){
+    if(u.was) sessionCrumbs.add(u.id); else sessionCrumbs.delete(u.id);
+    mountSheetKeepScroll(); syncSegs(false); renderCrumbs();
+    toast(u.was ? '材料放回本场了。' : '材料又移出去了。');
+  }
+  counts();
+}
+function undoRound(ti){
+  const last = rounds[rounds.length-1];
+  if(!last || last.ti !== ti){
+    toast(`要先撤回第 ${TURNS[last.ti].round} 轮——回退是按顺序来的，不然稿子会对不上。`); return;
+  }
+  const idx = undoStack.map(u=>u.k==='round' ? u.ti : -1).lastIndexOf(ti);
+  if(idx < 0){ toast('这一轮撤不了。'); return; }
+  undoStack.splice(idx+1); undo();
+}
+function dropItem(id){
+  if(!active.has(id)) return;
+  active.delete(id); promoted.delete(id);
+  undoStack.push({k:'item', id});
+  renderLedger(); mountSheetKeepScroll(); syncSegs(false); renderTarget();
+  toast('撤回了 1 条新事实，稿子里依赖它的句子已退回骨架。', ()=>undo());
+}
+function killSeg(i){
+  killed.add(i); undoStack.push({k:'kill', i});
+  mountSheetKeepScroll(); syncSegs(false);
+  toast('删掉了。已写入 events.jsonl → 幻觉样本，这就是评测集的原料。', ()=>undo());
+}
+
+/* ═══════ 成果页 ═══════ */
+function goldCount(){
+  const base = ARTIFACT.resume_bullets.flat().concat(ARTIFACT.self_intro)
+    .filter(s=>s.o==='grill' && s.hs.every(h=>active.has(h))).length;
+  return base + [...promoted].filter(id=>active.has(id)).length;
+}
+function renderReveal(){
+  const gold = goldCount();
+  const inf = ARTIFACT.stats.n_inferred - killed.size;
+  const ansRounds = rounds.filter(r=>r.kind==='answered').length;
+  const flagged   = rounds.filter(r=>r.kind==='flagged').length;
+  const totalGrill = ARTIFACT.stats.n_grill + promoted.size;
+
+  $('#rS').textContent = ARTIFACT.stats.n_source;
+  $('#rG').textContent = gold;
+  $('#rI').textContent = inf;
+  $('#bsG').textContent = active.size;
+  $('#bsR').textContent = ansRounds;
+  $('#bsX').textContent = flagged;
+  $('#bsI').textContent = inf;
+  $('#lsN').textContent = active.size;
+  $('#hbSum').textContent = `共 ${active.size} 条新事实，来自 ${ansRounds} 轮回答`;
+  $('.rv-h h2').innerHTML = gold
+    ? `同一段经历，<em id="rvN">${gold} 处</em>是刚刚从你嘴里挖出来的——<br>你原来那${intakeWay==='pick'?'堆材料里':'  73 个字里'}，一个都没有。`
+    : `你一题都没答，所以成稿里只剩<em id="rvN">材料里本来就有的东西</em>。<br>回工作台答两题，这一栏就会变样。`;
+
+  // 方式 B 没有用户原文，BEFORE 换成「材料里只有这些」
+  if(intakeWay === 'pick'){
+    const e = EXPERIENCES.find(x=>x.id===pickedExp) || EXPERIENCES[0];
+    $('.pn.before .pn-t').innerHTML = '<span>BEFORE</span>你的材料里只有这些';
+    $('#oldText').innerHTML = e.crumbs.map(id=>{
+      const c = CRUMB_BY_ID[id];
+      return `<div style="margin-bottom:8px;font-size:13px"><b style="color:var(--fg-mute);font-size:11px">${c.name}</b><br>${c.text}</div>`;
+    }).join('');
+    $('.old-note').innerHTML = `${e.crumbs.length} 条材料，全是<b>事实碎片</b>：有代码、有事故、有一句吵架记录，<br>
+      但没有一条说清了<b>结局、取舍和你的角色</b>。<br>你一个字都没写，这一整段是问出来的。`;
+  }else{
+    $('.pn.before .pn-t').innerHTML = '<span>BEFORE</span>你自己写的那一版';
+    $('#oldText').textContent = BASELINE;
+    $('.old-note').innerHTML = '73 个字，零个数字，零个决策，零个困难。<br>这不是你写得差——是<b>没人问过你正确的问题</b>。';
+  }
+
+  const bulHTML = ARTIFACT.resume_bullets.map((b,i)=>{
+    if(killed.has(i)) return '';
+    const segs = b.filter(s=>s.o!=='grill' || s.hs.every(h=>active.has(h)));
+    if(!segs.length) return '';
+    return `<div class="bul"><span class="bd">—</span><span>${segs.map(s=>segHTML(s,true)).join('')}</span></div>`;
+  }).join('')
+  + [...promoted].filter(id=>active.has(id)).map(id=>
+    `<div class="bul promoted"><span class="bd">—</span><span>${segHTML(promotedSeg(id),true)}<span class="pbadge">你手动加的</span></span></div>`).join('');
+  const missing = totalGrill - gold;
+  $('#bullets2').innerHTML = bulHTML + (missing
+    ? `<div class="hint" style="margin-top:12px">还有 <b>${missing} 处</b>没挖到，所以这份稿子比它能有的样子薄。
+       <button class="mini" style="margin-left:6px" onclick="go('wb')">回工作台继续问 →</button></div>` : '');
+  $('#intro2').innerHTML = ARTIFACT.self_intro
+    .filter(s=>s.o!=='grill' || s.hs.every(h=>active.has(h))).map(s=>segHTML(s,true)).join('');
+
+  renderJDBoard();
+  $('#hbBody').innerHTML = DIMS.map(k=>{
+    const items = [...active].filter(id=>HARVEST[id].dim===k);
+    return `<div class="hcol"><h5>${k}<span class="b${items.length?'':' zero'} num">${items.length}</span></h5>
+      ${items.length
+        ? `<ul>${items.map(id=>{const h=HARVEST[id];return `<li><i>◆</i><span>${h.text}
+            <span class="tagrow" style="margin-top:4px">${h.tags.map(x=>`<span class="tg">#${x}</span>`).join('')}
+            <span class="tg src">第 ${TURN_BY_ID[h.turn].round} 轮</span>
+            <span class="tg">→ ${promoted.has(id)?'简历（你加的）':h.dest}</span></span></span></li>`}).join('')}</ul>`
+        : `<p class="none">这一维度这次没挖到——不是“完成度 0%”，是这场没问到。</p>`}
+    </div>`;
+  }).join('');
+}
+function renderJDBoard(){
+  const t = curTarget(), box = $('#jdBoard');
+  if(!t){ box.innerHTML = ''; box.style.display='none'; return; }
+  box.style.display = '';
+  const n = reqTally(t), matched = t.reqs.filter(r=>reqState(r)==='ok');
+  const gaps = t.reqs.filter(r=>reqState(r)==='gap');
+  const left = t.reqs.filter(r=>['none','weak'].includes(reqState(r)));
+  box.innerHTML = `
+    <div class="hb-h"><h3>对上这个 JD 了吗 · ${t.title}</h3>
+      <small>${t.org} · 共 ${t.reqs.length} 条要求</small></div>
+    <div class="jdb-b">
+      <div class="jdcol"><h5>对上了<span class="b" style="background:var(--blue-bg);color:var(--blue-ink);border:1px solid var(--blue-bd)">${matched.length}</span></h5>
+        <ul>${matched.map(r=>`<li><i style="color:var(--blue)">✓</i><span>${r.text}
+          ${(r.fills||[]).some(h=>active.has(h))?`<span class="tg dim">第 ${TURN_BY_ID[HARVEST[r.fills.find(h=>active.has(h))].turn].round} 轮挖到的</span>`:'<span class="tg src">材料里本来就有</span>'}</span></li>`).join('')}</ul></div>
+      <div class="jdcol"><h5>还没补上<span class="b" style="background:var(--sunk2);color:var(--fg-mute)">${left.length}</span></h5>
+        ${left.length?`<ul>${left.map(r=>`<li><i>○</i><span>${r.text}<span class="tg">问得出来 · 回工作台</span></span></li>`).join('')}</ul>`
+          :'<p class="hcol none" style="font-style:italic;color:var(--fg-mute);font-size:11.5px">能问出来的都问完了。</p>'}</div>
+      <div class="honest">
+        <b>这份稿子对上了 ${matched.length} / ${t.reqs.length} 条。</b>
+        剩下 ${t.reqs.length-matched.length} 条里，有 <b>${gaps.length} 条是你确实没有的</b>：${gaps.map(r=>`「${r.text}」`).join('、')}。<br>
+        我们<b>没有替你圆这几条</b>——市面上按 JD 改简历的工具会给你编一句出来。
+        把它留在这儿，是因为你需要知道自己真正缺什么：那是去补技能的信号，不是去补文案的信号。
+      </div>
+    </div>`;
+}
+function finishToDash(){
+  sessionSaved = true; ev('save_thread'); go('dash');
+  setTimeout(()=>toast(`存好了。「校园二手交易平台 · 推荐系统」这段经历多了 ${active.size} 条事实，产出物挂在它下面。`), 400);
+}
+
+/* ═══════ ① Dashboard：以经历为单位 ═══════ */
+function liveExp(){
+  const dims = {};
+  [...active].forEach(id=>{ const d=HARVEST[id].dim; dims[d]=(dims[d]||0)+1; });
+  return {
+    id:'x1', now:true, title:'校园二手交易平台 · 推荐系统', span:'2025.03 – 2025.09',
+    crumbs:sessionCrumbs.size, rounds:`${rounds.length} / ${TURNS.length}`,
+    when: sessionSaved ? '刚刚' : (rounds.length ? '进行中' : '还没开始'),
+    state: sessionSaved ? 'done' : (rounds.length ? 'live' : 'new'), dims,
+    arts: sessionSaved ? ['实习简历 · EXPERIENCE','60 秒自我介绍'] : [],
+    facts:[...active].map(id=>({ ...HARVEST[id], id,
+      dest: promoted.has(id) ? '简历（你加的）' : HARVEST[id].dest,
+      from:`第 ${TURN_BY_ID[HARVEST[id].turn].round} 轮` }))
+  };
+}
+function expCard(e){
+  const total = Object.values(e.dims).reduce((a,b)=>a+b,0);
+  const filled = Object.keys(e.dims).filter(k=>e.dims[k]).length;
+  const st = { done:'已成型', live:'进行中', thin:'还很薄', new:'待开始' }[e.state] || '';
+  const stc = { done:'done', live:'live', thin:'draft', new:'draft' }[e.state] || 'draft';
+  return `<div class="exp${e.now?' now':''}" data-e="${e.id}">
+    <div class="exp-h">
+      <div class="t1">${e.title}<span class="state ${stc}">${st}</span></div>
+      <div class="t2">${e.span}</div>
+    </div>
+    <div class="matrix">${DIMS.map(d=>{
+      const n = e.dims[d]||0;
+      return `<div class="mcell${n?' has':''}" title="${d}：${n} 条"><b>${n||'·'}</b><span>${d}</span></div>`;
+    }).join('')}</div>
+    <div class="exp-stat">
+      <span>材料 <b>${e.crumbs}</b> 条</span>
+      <span>事实 <b>${total}</b> 条</span>
+      <span>维度 <b>${filled}</b> / 6</span>
+      <span>问过 <b>${e.rounds}</b> 轮</span>
+    </div>
+    <div class="exp-arts">${e.arts.length
+      ? e.arts.map(a=>`<span class="artchip">${a}</span>`).join('')
+      : '<span class="artchip none">还没喂给任何一份稿子</span>'}</div>
+    <div class="expfacts">${
+      DIMS.filter(d=>e.facts.some(f=>f.dim===d)).map(d=>
+        `<div class="dimgroup">${d}<span class="ln"></span><span class="c num">${e.facts.filter(f=>f.dim===d).length}</span></div>`
+        + e.facts.filter(f=>f.dim===d).map(f=>`
+          <div class="fb${String(f.dest).startsWith('候补')?' cand':''}">
+            <div class="tx">${f.text}</div>
+            <div class="mt">${f.tags.map(x=>`<span class="tg">#${x}</span>`).join('')}
+              <span class="s">·</span>${f.from}<span class="s">·</span>→ ${f.dest}</div></div>`).join('')
+      ).join('') || '<p class="lgHint" style="padding:0">这段还没有事实。开一场 Grill 就会开始攒。</p>'}</div>
+    <div class="exp-f">
+      ${e.now
+        ? `<button class="mini2 ${sessionSaved?'':'pri'}" onclick="go('${rounds.length?'wb':'setup'}')">${rounds.length&&!sessionSaved?'继续拷问':'再挖几轮'}</button>`
+        : `<button class="mini2" onclick="ev('resume_thread')">继续拷问</button>`}
+      <button class="mini2" onclick="toggleFacts('${e.id}')">看事实 (${total})</button>
+      ${e.now && sessionSaved ? `<button class="mini2" onclick="go('done')">看成果</button>` : ''}
+      <span class="when">${e.when}</span>
+    </div></div>`;
+}
+function toggleFacts(id){ $(`.exp[data-e="${id}"]`)?.classList.toggle('open'); }
+function renderDash(){
+  const live = liveExp();
+  const exps = [live].concat(PAST_EXP);
+  $('#expCnt').textContent = exps.length;
+  $('#expGrid').innerHTML = exps.map(expCard).join('');
+
+  // 待办：候补 + 没问完的经历
+  const candNow  = [...active].filter(id=>isCand(id) && !promoted.has(id)).length;
+  const candPast = PAST_EXP.reduce((n,e)=>n + e.facts.filter(f=>f.dest==='候补').length, 0);
+  const unfinished = PAST_EXP.filter(e=>e.state==='thin').length + (rounds.length && !sessionSaved ? 1 : 0);
+  const bits = [];
+  if(candNow+candPast) bits.push(`<b>${candNow+candPast} 条候补事实</b>还没进任何一份稿子`);
+  if(unfinished)       bits.push(`<b>${unfinished} 段经历</b>问到一半`);
+  $('#inbox').className = bits.length ? 'inbox' : 'inbox calm';
+  $('#inbox').innerHTML = bits.length
+    ? `<span class="t">待你决定：${bits.join('　·　')}。<br>
+        <span style="opacity:.8">候补不是垃圾——是「这次用不上，但面试被追问能展开」的料。</span></span>
+       <span class="a">
+         <button class="mini2 gold" onclick="go('wb');openPanel('ledger')">去处理候补</button>
+         ${rounds.length&&!sessionSaved?`<button class="mini2" onclick="go('wb')">继续没问完的那场</button>`:''}
+       </span>`
+    : `<span class="t">没有待办。挖到的每条事实都有去处，每段经历都问到了自然停下的地方。</span>
+       <span class="a"><button class="mini2" onclick="go('setup')">＋ 开一场新的</button></span>`;
+
+  const arts = (sessionSaved ? [{ title:'实习简历 · EXPERIENCE ＋ 60 秒自我介绍', kind:'简历',
+      exps:['校园二手交易平台 · 推荐系统'], when:'刚刚', now:true,
+      prov:[ARTIFACT.stats.n_source, goldCount(), ARTIFACT.stats.n_inferred-killed.size] }] : [])
+    .concat(PAST_ARTIFACTS);
+  $('#artCnt2').textContent = arts.length;
+  $('#artStrip').innerHTML = arts.map(a=>{
+    const tot = a.prov[0]+a.prov[1]+a.prov[2] || 1;
+    return `<div class="scard">
+      <div class="t1">${a.title}${a.now?'<span class="state done">刚刚生成</span>':''}</div>
+      <div class="t2">${a.kind} · 由 ${a.exps.map(x=>`<b>${x}</b>`).join(' ＋ ')} 喂出来 · ${a.when}<br>
+        <b>${a.prov[0]}</b> 有材料出处 / <b>${a.prov[1]}</b> 挖出来的 / <b>${a.prov[2]}</b> 待确认</div>
+      <div class="provbar"><i class="s" style="width:${a.prov[0]/tot*100}%"></i><i class="g" style="width:${a.prov[1]/tot*100}%"></i><i class="f" style="width:${a.prov[2]/tot*100}%"></i></div>
+      <div class="a"><button class="mini2" onclick="${a.now?"go('done')":"ev('open_artifact')"}">打开</button>
+        <button class="mini2" onclick="ev('export_md')">导出</button></div></div>`;
+  }).join('');
+
+  $('#srcGrid').innerHTML = CRUMBS.map(c=>
+    `<div class="scell"><div class="t1"><span class="ic">${SOURCE_ICON[c.type]}</span>${c.name}</div>
+      <div class="t2">${SOURCE_LABEL[c.type]}${sessionCrumbs.has(c.id)?' · 本场使用中':''}</div></div>`).join('');
+}
+
+
+/* ═══════ 投喂页的 Target 选择 ═══════ */
+function setTarget(id){
+  jdPasted = false;
+  $('#jdPaste').style.display = id==='paste' ? 'block' : 'none';
+  applyTarget(id==='paste' ? null : id);
+  renderSetup();
+}
+function parseJD(){
+  const txt = $('#jdText').value.trim();
+  if(txt.length < 20){ toast('粘一段真的 JD 进来——职责和要求都要，我才拆得出条目。'); return; }
+  jdPasted = true; applyTarget('tg1');
+  renderSetup();
+  toast('拆成 14 条要求了。demo 里解析结果是预设的，真实产品里这一步是模型做的。');
+  setTimeout(()=>$('#tgSummary').scrollIntoView({block:'center',behavior:'smooth'}), 200);
+}
+function renderTargetPicker(){
+  const opts = TARGETS.filter(t=>!t.entryOnly).map(t=>{
+    const n = reqTally(t);
+    return `<button class="tgopt${targetId===t.id&&!$('#jdPaste')?'':''}${targetId===t.id?' on':''}" onclick="setTarget('${t.id}')">
+      <span class="tk">${t.kind} · 已收藏</span>
+      <h5>${t.title}</h5>
+      <p>${t.org} · ${t.reqs.length} 条要求<br>现在对上 <b>${n.ok}</b> · 还能问出 <b>${n.none+n.weak}</b> · 确实没有 <b>${n.gap}</b></p></button>`;
+  }).join('');
+  $('#tgOpts').innerHTML = opts
+    + `<button class="tgopt${$('#jdPaste')&&$('#jdPaste').style.display==='block'?' on':''}" onclick="setTarget('paste')">
+        <span class="tk">＋ 新的</span><h5>贴一段 JD</h5>
+        <p>把岗位描述整段粘进来，我拆成一条一条的要求。</p></button>`
+    + `<button class="tgopt${targetId===null&&$('#jdPaste').style.display!=='block'?' on':''}" onclick="setTarget(null)">
+        <span class="tk none">不设目标</span><h5>只做通用打磨</h5>
+        <p>不对任何岗位，就把这段经历本身讲清楚。提问全部走通用维度。</p></button>`;
+
+  const t = curTarget();
+  $('#tgSummary').innerHTML = !t
+    ? `<div class="hint">没设目标也能跑——提问会全部走通用维度，成果页不会有 JD 对齐那一栏。</div>`
+    : (()=>{ const n = reqTally(t);
+        return `<div class="picked" style="margin-top:14px">
+          <h5>${t.title} · ${t.org}　共 ${t.reqs.length} 条要求</h5>
+          <div style="display:flex;gap:6px;flex-wrap:wrap;margin-top:10px">
+            <span class="rstat ok"><i class="d"></i>已对上 <b>${n.ok}</b></span>
+            <span class="rstat weak"><i class="d"></i>只有弱证据 <b>${n.weak}</b></span>
+            <span class="rstat none"><i class="d"></i>还没有，但问得出来 <b>${n.none}</b></span>
+            <span class="rstat gap"><i class="d"></i>你确实没有 <b>${n.gap}</b></span>
+          </div>
+          <div class="reqlist" style="padding:12px 0 0">${
+            ['weak','none','gap'].map(st=>{
+              const list = t.reqs.filter(r=>reqState(r)===st).slice(0, st==='gap'?2:3);
+              if(!list.length) return '';
+              return list.map(r=>`<div class="req ${st}"><div class="rh">
+                <span class="mk">${REQ_MARK[st]}</span><span class="rt">${r.text}</span>
+                <span class="kd ${r.kind}">${REQ_KIND[r.kind]}</span></div>
+                ${st==='gap'?'<div class="ev2">↳ 这条问不出来，不会为它生成任何文案。</div>':
+                  '<div class="ev2">↳ 这条<b>只有你能补</b>，拷问时会优先问。</div>'}</div>`).join('');
+            }).join('')
+          }<p class="reqnote" style="padding-top:6px">…完整清单在工作台右边第五个面板里，随时能展开。</p></div>
+          <p class="note">提问预算 <b>4 : 2</b> —— 6 轮里 4 轮打 JD 缺口，2 轮打「只有你有」的东西。
+            只盯着 JD 会把你身上最独特的部分漏掉。</p>
+        </div>`; })();
+}
+
+
+/* ═══════ ①b 机会页 ═══════
+   岗位和人是同一件事：拿我的事实去对外部的要求。
+   所以这一页和工作区共用同一个事实库，只是换了个方向看。 */
+function renderOpps(){
+  const real = TARGETS.filter(t=>!t.entryOnly);
+  $('#oppCnt').textContent = TARGETS.length;
+
+  const totalNone = real.reduce((a,t)=>a+reqTally(t).none+reqTally(t).weak, 0);
+  $('#oppInbox').className = totalNone ? 'inbox' : 'inbox calm';
+  $('#oppInbox').innerHTML = totalNone
+    ? `<span class="t">待你决定：<b>${real.length} 个机会</b>还有 <b>${totalNone} 条要求</b>能靠拷问补上。<br>
+        <span style="opacity:.8">补缺口不是改文案——是把你其实做过、但从没说出口的事挖出来。</span></span>
+       <span class="a"><button class="mini2 gold" onclick="startFromTarget('${real[0].id}')">从「${real[0].title}」开始补</button></span>`
+    : `<span class="t">所有机会的缺口都补完了。剩下的是你确实没有的，那不是文案能解决的。</span>`;
+
+  $('#oppGrid').innerHTML = real.map(t=>{
+    const n = reqTally(t);
+    const best = bestExpFor(t);
+    return `<div class="opp">
+      <div class="opp-h">
+        <div class="t1">${t.title}<span class="kindtag ${t.kind==='RA'?'ra':''}">${t.kind}</span></div>
+        <div class="t2">${t.org} · 共 ${t.reqs.length} 条要求</div>
+      </div>
+      <div class="opp-score">
+        <span class="rstat ok"><i class="d"></i>对上 <b>${n.ok}</b></span>
+        <span class="rstat weak"><i class="d"></i>弱 <b>${n.weak}</b></span>
+        <span class="rstat none"><i class="d"></i>还能问出 <b>${n.none}</b></span>
+        <span class="rstat gap"><i class="d"></i>确实没有 <b>${n.gap}</b></span>
+      </div>
+      <div class="opp-rel">最相关的经历：<b>${best.title}</b>${best.note?` · ${best.note}`:''}<br>
+        ${n.gap?`那 <b>${n.gap}</b> 条确实没有的（${t.reqs.filter(r=>reqState(r)==='gap').map(r=>r.text.replace(/（.*?）/g,'')).join(' / ')}）<b>不会被写进稿子</b>。`:''}</div>
+      <div class="opp-f">
+        <button class="mini2 pri" onclick="startFromTarget('${t.id}')">去补缺口</button>
+        <button class="mini2" onclick="previewTarget('${t.id}')">看要求清单</button>
+        <button class="mini2" onclick="ev('tailor_resume')">出一版稿子</button>
+        <span class="when">${t.when}</span>
+      </div></div>`;
+  }).join('')
+  + (()=>{ const e = TARGETS.find(t=>t.entryOnly); return `<div class="opp entry">
+      <div class="opp-h"><div class="t1">${e.title}<span class="kindtag soon">先留个入口</span></div>
+        <div class="t2">对称匹配 · 和实习/RA 走的不是同一条路</div></div>
+      <div class="opp-rel" style="padding-top:4px">实习和 RA 是<b>不对称</b>的：对方发布要求，你去对。<br>
+        合伙人是<b>对称</b>的：双方都是一堆事实，要互相看。<br>
+        这一版先不做设计——它更接近下面「同频的人」那条路，而不是上面的要求清单。</div>
+      <div class="opp-f"><button class="mini2" onclick="ev('cofounder_waitlist')">留个位置</button>
+        <span class="when">未开始</span></div></div>`; })();
+
+  $('#peerGrid').innerHTML = PEERS.map(p=>`
+    <div class="peer">
+      <div class="ph"><span class="av2">${p.handle[1].toUpperCase()}</span>
+        <span><span class="hn">${p.handle}</span><span class="ln2">${p.line}</span></span></div>
+      <div class="why2">为什么给你看他</div>
+      <div class="ovl">${p.overlap.map(x=>`<span class="tg dim">#${x}</span>`).join('')}</div>
+      <div class="quote">${p.theirs}</div>
+      <div class="mine">↳ ${p.mineHint}</div>
+      <div class="a2"><button class="mini2" onclick="ev('open_peer_thread')">看他的 thread</button>
+        <button class="mini2" onclick="ev('say_hi')">打招呼</button></div>
+    </div>`).join('');
+
+  $('#visGrid').innerHTML = VISIBILITY.map(v=>`
+    <div class="vlayer${v.locked?' lock':''}">
+      <div class="vh"><span class="vn">${v.name}</span>
+        <span class="toggle2${v.on?' on':''}${v.locked?' dis':''}"><i></i></span></div>
+      <div class="vd">${v.desc}</div>
+      <span class="vs ${v.locked?'lockv':(v.on?'on':'off')}">${v.state}</span>
+    </div>`).join('');
+}
+function bestExpFor(t){
+  const cands = [{ id:'e1', title:'校园二手交易平台 · 推荐系统' }]
+    .concat(PAST_EXP.map(e=>({ id:e.id, title:e.title })));
+  if(t.id === 'tg2') return { title:'校园二手交易平台 · 推荐系统', note:'双塔召回 + 精排，方向完全对得上' };
+  return { title:'校园二手交易平台 · 推荐系统', note:`本场正在挖，已经补上 ${reqTally(t).ok} 条` };
+}
+/* 「去补缺口」＝ 开一场以这个目标为锚的拷问 —— 两块功能在这里合流 */
+function startFromTarget(id){
+  applyTarget(id); go('setup');
+  setTimeout(()=>toast(`目标换成「${curTarget().title}」了。下面的经历列表已经按「能对上几条」重排。`), 300);
+}
+function previewTarget(id){
+  applyTarget(id); go('wb'); openPanel('target'); maxPanel('target');
+}
+
+/* ═══════ ② 投喂：两种方式 ═══════ */
+function setWay(w){
+  intakeWay = w;
+  $('#wayA').classList.toggle('on', w==='write');
+  $('#wayB').classList.toggle('on', w==='pick');
+  $('#bodyWrite').classList.toggle('on', w==='write');
+  $('#bodyPick').classList.toggle('on', w==='pick');
+  renderSetup();
+}
+function pickExp(id){ pickedExp = id; renderSetup(); }
+function expCovers(e){
+  const t = curTarget(); if(!t) return null;
+  // 这段经历能对上 JD 的哪几条：它自己的材料 + 它能问出来的事实
+  const own = new Set(e.crumbs);
+  return t.reqs.filter(r=>
+    (r.ev||[]).some(c=>own.has(c)) ||
+    (r.weak && (r.weak.refs||[]).some(c=>own.has(c))) ||
+    (e.id==='e1' && (r.fills||[]).length)
+  ).length;
+}
+function renderSetup(){
+  renderTargetPicker();
+  const sorted = [...EXPERIENCES].sort((a,b)=>(expCovers(b)||0)-(expCovers(a)||0));
+  $('#expOpts').innerHTML = sorted.map(e=>{
+    const na = e.id !== 'e1';
+    return `<button class="eopt${pickedExp===e.id?' on':''}${na?' na':''}" onclick="pickExp('${e.id}')">
+      <span class="et">${e.title}<span class="span">${e.span}</span>
+        <span class="heat ${e.heat}">材料${e.heat}</span>
+        ${expCovers(e)!==null?`<span class="heat 中">能对上 JD ${expCovers(e)} 条</span>`:''}
+        ${e.recommend?'<span class="heat 厚">建议先挖这段</span>':''}</span>
+      <div class="why">${e.why}</div>
+      <div class="fromrow"><span class="lb">聚自</span>${e.crumbs.map(c=>
+        `<span class="tg src">${SOURCE_ICON[CRUMB_BY_ID[c].type]} ${CRUMB_BY_ID[c].name}</span>`).join('')}</div>
+      <span class="est">${na?'demo 未含这段脚本':e.est}</span></button>`;
+  }).join('');
+
+  const e = EXPERIENCES.find(x=>x.id===pickedExp);
+  const na = pickedExp !== 'e1';
+  $('#pickedBox').innerHTML = na
+    ? `<h5>已选：${e.title}</h5>
+       <p class="note">这个原型只跑通了第一段的拷问脚本（6 轮问答是手写的假数据）。
+         <b>换回「校园二手交易平台」才能开始</b>——真实产品里三段都能问。</p>`
+    : `<h5>已选：${e.title} · 这就是本场的基准</h5>
+       <div class="bl">${e.crumbs.map(id=>CRUMB_BY_ID[id].text).join(' ／ ')}</div>
+       <p class="note">注意：<b>这段基准是从你材料里拼的，不是你写的</b>。所以最后的对比不是「你写的 vs 成稿」，
+         而是「<b>材料里本来有的 vs 问出来之后的</b>」。成果页会照这个口径展示。</p>`;
+  $('#startBtn').disabled = intakeWay==='pick' && na;
+  $('#startBtn').style.opacity = $('#startBtn').disabled ? .45 : 1;
+  $('#startBtn').style.pointerEvents = $('#startBtn').disabled ? 'none' : 'auto';
+
+  $('#crumbgrid').innerHTML = CRUMBS.filter(c=>sessionCrumbs.has(c.id)).map(c=>
+    `<div class="cr"><span class="ic">${SOURCE_ICON[c.type]}</span>
+      <span style="min-width:0"><span class="nm">${c.name}</span><span class="tx">${c.text}</span></span>
+      <span class="ck">✓</span></div>`).join('');
+  $('#crumbHint').innerHTML = `本场装了 <b>${sessionCrumbs.size}</b> 条（库里共 ${CRUMBS.length} 条），
+    约 4,200 tokens，<b>全部塞进 context，不做检索</b>。进了工作台还能随时拖进拖出。`;
+}
+
+/* ═══════ 挂载 / 重置 ═══════ */
+function mountSheet(){
+  const s = sheetHTML(false);
+  $('#bullets').innerHTML = s.bul;
+  $('#intro').innerHTML = s.intro;
+  renderCrumbs();
+}
+function mountSheetKeepScroll(){
+  const b = $('#outBody'), top = b ? b.scrollTop : 0;
+  mountSheet();
+  if(b) b.scrollTop = top;
+}
+function restart(){
+  cursor = 0; rounds = []; answering = false; sessionSaved = false;
+  active = new Set(); promoted = new Set(); killed = new Set(); undoStack = [];
+  sessionCrumbs = new Set(CRUMBS.filter(c=>!c.off).map(c=>c.id));
+  $('#cpIn').textContent = ''; composerReady(false);
+  panelState = {...PANEL_DEFAULT};
+  mountSheet(); renderLedger(); renderGrill(); syncSegs(false); layout(); counts(); renderTarget();
+}
+
+/* ═══════ 交互杂项 ═══════ */
+function flash(kind){
+  const sel = kind==='ghost' ? '#viewA .sg.grill.ghost'
+            : kind==='grill' ? '#viewA .sg.grill:not(.ghost)'
+            : kind==='source' ? '#viewA .sg.source:not(.orphan)' : `#viewA .sg.${kind}`;
+  openPanel('draft');
+  const ns = $$(sel);
+  if(!ns.length){ toast('这一类现在是 0 个。'); return; }
+  ns.forEach(n=>{ n.style.outline='2px solid var(--fg)'; n.style.outlineOffset='2px';
+    setTimeout(()=>{n.style.outline='';n.style.outlineOffset='';}, 1200); });
+  ns[0].scrollIntoView({block:'center',behavior:'smooth'});
+}
+/* 账本条目 →「第 N 轮 ↗」：跳到左边那一轮，而不是把问题再抄一遍 */
+function peekTurn(tid){
+  const t = TURN_BY_ID[tid];
+  openPanel('grill');
+  const ti = TURNS.findIndex(x=>x.id===tid);
+  const node = $(`#grill .past[data-ti="${ti}"]`) || (cursor===ti ? $('#grill .qcard') : null);
+  if(node){
+    node.scrollIntoView({block:'center',behavior:'smooth'});
+    node.style.background='var(--gold-bg)'; node.style.borderRadius='8px';
+    setTimeout(()=>{node.style.background='';}, 1400);
+  }
+  toast(`第 ${t.round} 轮：${t.question.slice(0,42)}…`);
+}
+
+/* ═══════ 拖拽 ═══════ */
+document.addEventListener('dragstart', e=>{
+  const cand = e.target.closest('.item.cand');
+  if(cand){
+    e.dataTransfer.setData('text/plain','fact:'+cand.dataset.i);
+    e.dataTransfer.effectAllowed='copy';
+    cand.classList.add('drag'); document.body.classList.add('dragging');
+    openPanel('draft'); return;
+  }
+  const src = e.target.closest('.src');
+  if(src){
+    e.dataTransfer.setData('text/plain','crumb:'+src.dataset.id);
+    e.dataTransfer.effectAllowed='move';
+    src.classList.add('drag'); document.body.classList.add('cdrag');
+  }
+});
+document.addEventListener('dragend', ()=>{
+  document.body.classList.remove('dragging','cdrag');
+  $$('.item.drag,.src.drag').forEach(n=>n.classList.remove('drag'));
+  $$('.cdrop.over').forEach(n=>n.classList.remove('over'));
+  $('#dropzone').classList.remove('over');
+});
+document.addEventListener('dragover', e=>{
+  const dz = e.target.closest('#dropzone');
+  if(dz){ e.preventDefault(); e.dataTransfer.dropEffect='copy'; dz.classList.add('over'); return; }
+  const cd = e.target.closest('.cdrop');
+  if(cd){ e.preventDefault(); e.dataTransfer.dropEffect='move';
+    $$('.cdrop').forEach(n=>n.classList.toggle('over', n===cd)); }
+});
+document.addEventListener('dragleave', e=>{
+  if(e.target.closest('#dropzone')) $('#dropzone').classList.remove('over');
+});
+document.addEventListener('drop', e=>{
+  const data = e.dataTransfer.getData('text/plain') || '';
+  const dz = e.target.closest('#dropzone');
+  if(dz && data.startsWith('fact:')){
+    e.preventDefault(); dz.classList.remove('over');
+    document.body.classList.remove('dragging');
+    promote(data.slice(5)); return;
+  }
+  const cd = e.target.closest('.cdrop');
+  if(cd && data.startsWith('crumb:')){
+    e.preventDefault(); cd.classList.remove('over');
+    const id = data.slice(6), wantIn = cd.dataset.zone === 'in';
+    if(sessionCrumbs.has(id) !== wantIn) toggleCrumb(id);
+  }
+});
+
+/* ═══════ 出处 popover ═══════ */
+const pop = $('#pop');
+document.addEventListener('mouseover', e=>{
+  const d = e.target.closest('#denom');
+  if(d){
+    const tg = $$('#viewA .sg.grill').length, or = $$('#viewA .sg.source.orphan').length;
+    pop.innerHTML = `<div class="h"><em>分母是怎么来的</em></div>
+      成稿被切成 <b>${$$('#viewA .sg.source').length + tg + ARTIFACT.stats.n_inferred - killed.size} 个可数片段</b>（句子/从句级），
+      每个只有三种归属：有材料出处、刚从你嘴里挖出来、AI 自己补的。<br><br>
+      报的是<b>片段个数</b>，不是「完成度」——没人能确定你把一件事讲完了没有，但谁都能数清有几句指得出出处。
+      ${or?`<br><br>其中 <b>${or} 处</b>的材料被你移出了本场，所以它们现在算「无出处」。`:''}`;
+    place(pop, d); return;
+  }
+  const t = e.target.closest('.sg');
+  if(!t || t.classList.contains('ghost')){ pop.style.display='none'; aim([]); return; }
+  let h = '';
+  if(t.dataset.ref){
+    const c = CRUMB_BY_ID[t.dataset.ref], gone = !sessionCrumbs.has(c.id);
+    h = `<div class="h"><em>${SOURCE_ICON[c.type]} ${c.name}</em> · ${SOURCE_LABEL[c.type]} · ${c.id}</div>${c.text}
+      ${gone?'<div style="margin-top:8px;padding-top:8px;border-top:1px solid var(--pop-line);color:var(--red)">⚠ 这条材料已被移出本场，所以这句话现在没有出处。</div>':''}`;
+    aim([t.dataset.ref]); if(screenName==='wb') openPanel('crumbs');
+  } else if(t.dataset.turn){
+    const tn = TURN_BY_ID[t.dataset.turn], hs = JSON.parse(t.dataset.hs||'[]');
+    h = `<div class="h">🔥 <em>第 ${tn.round} 轮 · ${tn.id}</em> · 你的原话</div>${tn.answer}
+      <div style="margin-top:8px;padding-top:8px;border-top:1px solid var(--pop-line);opacity:.72">
+      依赖 ${hs.length} 条新事实：${hs.map(x=>HARVEST[x].text).join(' ／ ')}</div>`;
+    aim([]);
+  } else if(t.dataset.note){ h = `<div class="h">⚠ <em>无出处</em></div>${t.dataset.note}`; aim([]); }
+  pop.innerHTML = h; place(pop, t);
+});
+function place(p, t){
+  p.style.display = 'block';
+  const r = t.getBoundingClientRect();
+  p.style.left = Math.max(10, Math.min(r.left, innerWidth - p.offsetWidth - 14)) + 'px';
+  p.style.top  = (r.bottom + 8 > innerHeight - 130 ? r.top - p.offsetHeight - 8 : r.bottom + 8) + 'px';
+}
+document.addEventListener('mouseout', e=>{ if(e.target.closest('.sg,#denom')) pop.style.display='none'; });
+
+/* ═══════ toast / bump / 埋点 ═══════ */
+let tt;
+function toast(m, undoFn){
+  const t = $('#toast');
+  t.innerHTML = esc(m).replace(/&lt;br&gt;/g,'<br>') + (undoFn ? ' <span class="u" id="tU">撤回</span>' : '');
+  if(undoFn) $('#tU').onclick = ()=>{ undoFn(); t.classList.remove('on'); };
+  t.classList.add('on'); clearTimeout(tt);
+  tt = setTimeout(()=>t.classList.remove('on'), undoFn ? 4600 : 3200);
+}
+function bump(m){ const b = $('#bump'); b.textContent = m; b.classList.remove('on'); void b.offsetWidth; b.classList.add('on'); }
+function ev(type){ toast(`已埋点 events.jsonl → {"type":"${type}"}　这就是评测集的原料`); }
+
+/* ═══════ 自动演示 ═══════ */
+let tour = false;
+function stopTour(){ tour = false; $('#autobar').classList.remove('on');
+  $$('#tourBtn0,#tourBtn1,#tourBtn2').forEach(b=>{b.textContent='自动演示 ▶';b.classList.remove('on')}); }
+function tourSay(s){ $('#autoTxt').innerHTML = '自动演示 · <b>'+s+'</b>'; }
+async function wait(ms){ const step = 60; for(let i=0;i<ms;i+=step){ if(!tour) throw 'stop'; await sleep(step); } }
+async function autoTour(){
+  if(tour){ stopTour(); return; }
+  tour = true; $('#autobar').classList.add('on');
+  $$('#tourBtn0,#tourBtn1,#tourBtn2').forEach(b=>{b.textContent='停止演示 ❚❚';b.classList.add('on')});
+  try{
+    restart(); setWay('write'); targetId='tg1'; go('landing'); tourSay('⓪ 落地页');
+    const sc = $('#s-landing .scroll');
+    await wait(2200); sc.scrollTo({top:$('#why').offsetTop-40,behavior:'smooth'});
+    await wait(2600); sc.scrollTo({top:$('#how').offsetTop-40,behavior:'smooth'});
+    await wait(2400);
+
+    go('dash'); tourSay('① 工作区 · 按「经历」组织'); await wait(3200);
+    go('opps'); tourSay('①b 机会 · 岗位和人，都是拿事实去对外部要求'); await wait(4200);
+    go('setup'); tourSay('② 投喂 · ① 产出什么（格式） ② 为谁做（Target）'); await wait(2400);
+    tourSay('② Target · JD 拆成 14 条要求：对上 / 弱 / 能问出 / 确实没有'); await wait(4000);
+    setWay('pick'); tourSay('② 方式 B · 经历按「能对上 JD 几条」重排'); await wait(3600);
+    setWay('write');
+    go('wb'); tourSay('③ 工作台 · 顶上常驻 Target 条，五个面板'); await wait(2600);
+    openPanel('target'); maxPanel('target'); tourSay('③ 第五面板 · 要求清单（默认收起，需要时展开）'); await wait(3600);
+    maxPanel('target'); cyclePanel('target'); await wait(900);
+
+    for(let i=0;i<TURNS.length;i++){
+      if(!tour) throw 'stop';
+      const t = TURNS[i];
+      tourSay(`第 ${t.round}/6 轮 · ${t.dim}`);
+      await wait(1300);
+      if(t.status === 'flagged_useless'){
+        tourSay(`第 ${t.round}/6 轮 · 它问砸了，用户判它没意义`);
+        await wait(1200); flagBad(); await wait(1400); continue;
+      }
+      await startAnswer(); await wait(600);
+      send(); await wait(2200);
+      if(i === 1){
+        tourSay('面板可收可放：材料收到边上，简历放大'); await wait(400);
+        cyclePanel('crumbs'); await wait(1500); maxPanel('draft'); await wait(2200);
+        maxPanel('draft'); cyclePanel('crumbs'); await wait(900);
+      }
+      if(i === 2){
+        tourSay('账本可以按维度分栏，也可以按标签分栏'); await wait(1200);
+        setLedgerKey('tag'); await wait(2400); setLedgerKey('dim'); await wait(1200);
+        tourSay('候补事实：默认不进简历，用户手动拖进去'); await wait(1200);
+        promote('h10'); await wait(2400);
+      }
+      if(i === 3){
+        tourSay('答完 → JD 清单上那几条从 ○ 翻成 ✓'); await wait(1000);
+        openPanel('target'); await wait(2800); cyclePanel('target'); await wait(700);
+        tourSay('把材料拖出本场 → 引用它的句子当场变成「无出处」'); await wait(1000);
+        toggleCrumb('c4'); await wait(2400); toggleCrumb('c4'); await wait(1200);
+      }
+    }
+    tourSay('④ 成果 · 原文 vs 成稿'); await wait(1200);
+    go('done'); await wait(2600);
+    tourSay('④ 诚实的收尾：对上 12/14，剩下 2 条你确实没有');
+    $('#s-done .rv-b').scrollTo({top:$('#jdBoard').offsetTop-120, behavior:'smooth'}); await wait(4200);
+    tourSay('⑤ 存回工作区 —— 那段经历变厚了一截');
+    finishToDash(); await wait(3800);
+    tourSay('演示结束 · 现在你可以自己点了');
+    await wait(2400); stopTour();
+  }catch(e){ /* 用户接管 */ }
+}
+
+/* ═══════ 键盘 ═══════ */
+$('#cpIn').addEventListener('keydown', e=>{ if(e.key === 'Enter' && !e.shiftKey){ e.preventDefault(); send(); } });
+$('#cpIn').addEventListener('focus', ()=>$('#cpBox').classList.add('focus'));
+$('#cpIn').addEventListener('blur',  ()=>$('#cpBox').classList.remove('focus'));
+$('#cpIn').addEventListener('input', ()=>composerReady(!!$('#cpIn').textContent.trim()));
+document.addEventListener('keydown', e=>{
+  const typingNow = e.target.closest('[contenteditable],input,textarea');
+  if((e.metaKey||e.ctrlKey) && e.key.toLowerCase()==='z'){ e.preventDefault(); if(screenName==='wb') undo(); return; }
+  if(e.key === 'Escape'){ stopTour(); pop.style.display='none'; return; }
+  if(!typingNow && e.key.toLowerCase()==='s' && !e.metaKey && !e.ctrlKey){ cycleSkin(); return; }
+  if(screenName==='wb' && !typingNow && ['1','2','3','4','5'].includes(e.key)){
+    e.preventDefault(); cyclePanel(PANELS[+e.key-1]);
+  }
+});
+
+/* ═══════ 初始化 ═══════ */
+$('#ta').value = BASELINE;
+$('#taCount').textContent = `　当前 ${BASELINE.length} 字。`;
+$('#forx').innerHTML = GOALS.map((g,i)=>`<button class="chip${i?'':' on'}" onclick="pickGoal(this,'${g}')">${g}</button>`).join('');
+function pickGoal(b, g){ $$('#forx .chip').forEach(c=>c.classList.remove('on')); b.classList.add('on'); $('#goalTxt').textContent = g; }
+$('#specBody').innerHTML = ARTIFACT.self_intro.map(s=>segHTML(s,true)).join('');
+
+restart(); renderSetup();
+
+/* 跳到某个状态：#screen=wb&round=3&panel=crumbs:min&theme=dark&promote=h10&way=pick */
+function seek(n){
+  restart();
+  for(let i=0;i<n && cursor<TURNS.length;i++){
+    const t = TURNS[cursor];
+    const kind = t.status==='flagged_useless' ? 'flagged' : 'answered';
+    const ids  = kind==='answered' ? t.harvest.slice() : [];
+    ids.forEach(id=>active.add(id));
+    undoStack.push({k:'round', ti:cursor, kind, text:kind==='answered'?t.answer:'', ids});
+    rounds.push({ti:cursor, kind, text:kind==='answered'?t.answer:''});
+    cursor++;
+  }
+  renderGrill(); renderLedger(); mountSheetKeepScroll(); syncSegs(false); renderTarget(); renderTarget(); counts();
+}
+(function bootFromHash(){
+  const p = new URLSearchParams(location.hash.slice(1));
+  applySkin(p.get('skin') || document.documentElement.dataset.skin || 'paper');
+  if(p.get('theme')==='dark'){ document.documentElement.dataset.theme='dark'; $$('.theme span').forEach(s=>s.textContent='☀'); }
+  if(p.has('round'))   seek(+p.get('round'));
+  if(p.has('promote')) p.get('promote').split(',').forEach(id=>{ if(active.has(id)) promoted.add(id); });
+  if(p.has('drop'))    p.get('drop').split(',').forEach(id=>sessionCrumbs.delete(id));
+  if(p.has('saved'))   sessionSaved = true;
+  if(p.has('target'))  targetId = p.get('target')==='none' ? null : p.get('target');
+  if(p.has('way'))     setWay(p.get('way'));
+  if(p.has('ledger'))  setLedgerKey(p.get('ledger'));
+  if(p.has('panel'))   p.get('panel').split(',').forEach(x=>{
+    const [k,v] = x.split(':'); if(PANELS.includes(k)) panelState[k] = v || 'min';
+  });
+  mountSheetKeepScroll(); syncSegs(false); renderLedger(); renderTarget(); layout();
+  go(p.get('screen') || 'landing');
+})();
+</script>
+</body>
+</html>
