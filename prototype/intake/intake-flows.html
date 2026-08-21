@@ -1,0 +1,598 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>投喂页 · 三种交互流程对比</title>
+<style>
+/* 视觉沿用方案 A「编辑部」的 token，一个都没改 —— 这一轮比的是交互，不是配色 */
+:root{
+  --bg:#F7F5EF; --card:#FFFDF9; --sunk:#F0EDE4; --sunk2:#E5E1D5;
+  --line:#E4E0D5; --line-hard:#D2CCBB;
+  --fg:#1C1A17; --fg-dim:#514D45; --fg-mute:#6C665B;
+  --ink:#232019; --on-ink:#FFFDF9; --on-gold:#3A2705;
+  --gold:#B4791A; --gold-bg:#FBF1DA; --gold-bd:#E0BC69; --gold-ink:#6B4405;
+  --gold-fill:#F7E3B0; --gold-halo:#F1E2BC;
+  --blue:#2A5FA8; --blue-bg:#E9EFF8; --blue-bd:#B3C8E3; --blue-ink:#1A4374;
+  --red:#B33A28; --red-bg:#FAEAE5; --red-bd:#E3A796; --red-ink:#78261A;
+  --display:Georgia,"Times New Roman","Songti SC","Noto Serif SC",serif;
+  --r1:5px; --r2:9px; --r3:13px; --r4:16px; --r5:20px; --rp:99px;
+  --shadow-sm:0 12px 28px -22px rgba(70,52,20,.45);
+  --shadow-lg:0 30px 70px -42px rgba(70,52,20,.4);
+  --sans:-apple-system,BlinkMacSystemFont,"Inter","PingFang SC","Hiragino Sans GB",sans-serif;
+  --mono:ui-monospace,SFMono-Regular,Menlo,monospace;
+}
+*{box-sizing:border-box;margin:0;padding:0}
+html,body{height:100%}
+body{background:var(--bg);color:var(--fg);font-family:var(--sans);font-size:15px;line-height:1.7;
+  -webkit-font-smoothing:antialiased;display:flex;flex-direction:column;overflow:hidden}
+button{font:inherit;color:inherit;background:none;border:none;cursor:pointer}
+b,strong{font-weight:650}
+:focus-visible{outline:2px solid var(--blue);outline-offset:2px;border-radius:var(--r1)}
+::-webkit-scrollbar{width:9px}::-webkit-scrollbar-thumb{background:#DBD5C6;border-radius:5px}
+.num{font-variant-numeric:tabular-nums}
+
+/* ── 顶栏：三个流程切换 ── */
+.top{flex:none;display:flex;align-items:center;gap:14px;padding:9px 20px;
+  background:var(--card);border-bottom:1px solid var(--line);flex-wrap:wrap}
+.brand{display:flex;align-items:center;gap:9px;font-weight:660;white-space:nowrap}
+.brand .dot{width:9px;height:9px;border-radius:50%;background:var(--gold);box-shadow:0 0 0 4px var(--gold-halo)}
+.brand small{color:var(--fg-mute);font-weight:500;font-size:11.5px;letter-spacing:.6px}
+.fswitch{display:flex;gap:3px;background:var(--sunk);border:1px solid var(--line);border-radius:var(--r2);padding:3px}
+.fswitch button{padding:6px 14px;border-radius:var(--r1);font-size:13px;color:var(--fg-mute);font-weight:600;white-space:nowrap}
+.fswitch button.on{background:var(--card);color:var(--fg);box-shadow:0 1px 3px rgba(70,52,20,.12)}
+.fswitch button .n{font-family:var(--mono);font-size:11px;opacity:.6;margin-right:5px}
+.tr{margin-left:auto;display:flex;align-items:center;gap:9px}
+.meter2{display:flex;align-items:center;gap:7px;font-size:11.5px;color:var(--fg-mute);
+  border:1px solid var(--line);background:var(--sunk);border-radius:var(--rp);padding:4px 12px;white-space:nowrap}
+.meter2 b{color:var(--fg);font-family:var(--mono)}
+.gbtn{border:1px solid var(--line-hard);border-radius:var(--r2);padding:6px 13px;font-size:13px;
+  color:var(--fg-dim);background:var(--card);white-space:nowrap}
+.gbtn:hover{background:var(--sunk);color:var(--fg)}
+
+/* ── 流程说明条 ── */
+.note{flex:none;display:flex;align-items:flex-start;gap:12px;padding:10px 20px;
+  background:var(--gold-bg);border-bottom:1px solid var(--gold-bd);font-size:12.5px;
+  color:var(--gold-ink);line-height:1.65}
+.note b{font-weight:750}
+.note .tag{flex:none;font-size:10px;font-weight:800;letter-spacing:.8px;border:1px solid var(--gold-bd);
+  background:var(--card);color:var(--gold-ink);border-radius:var(--rp);padding:2px 9px;margin-top:2px}
+
+.stage{flex:1;min-height:0;overflow:auto;position:relative}
+.flow{display:none;animation:fade .3s ease-out}
+.flow.on{display:block}
+@keyframes fade{from{opacity:0}}
+.wrap{max-width:760px;margin:0 auto;padding:34px 26px 90px}
+.wrap.wide{max-width:940px}
+
+h1{font-family:var(--display);font-size:27px;font-weight:620;letter-spacing:-.2px;line-height:1.4}
+h2{font-family:var(--display);font-size:19px;font-weight:620;letter-spacing:-.2px}
+.kick2{font-size:11px;letter-spacing:1.3px;color:var(--gold-ink);font-weight:750}
+.lede{color:var(--fg-dim);font-size:14.5px;margin-top:11px;line-height:1.85}
+
+/* ══════════ 流程 ① 对话式 ══════════ */
+.turn{margin-bottom:16px;animation:rise .34s cubic-bezier(.2,.85,.3,1) both}
+@keyframes rise{from{opacity:0;transform:translateY(10px)}}
+.ask{display:flex;gap:12px;align-items:flex-start}
+.ava{width:28px;height:28px;flex:none;border-radius:50%;background:var(--gold-bg);
+  border:1px solid var(--gold-bd);color:var(--gold-ink);display:grid;place-items:center;
+  font-size:12px;font-weight:750;margin-top:2px}
+.qtx{font-family:var(--display);font-size:18px;line-height:1.6;font-weight:600;flex:1;padding-top:2px}
+.qsub{font-size:12.5px;color:var(--fg-mute);margin-top:5px;line-height:1.65}
+.opts{display:flex;flex-wrap:wrap;gap:9px;margin:14px 0 0 40px}
+.opt{text-align:left;background:var(--card);border:1px solid var(--line-hard);border-radius:var(--r3);
+  padding:11px 15px;transition:.15s;min-width:170px;position:relative}
+.opt:hover{border-color:var(--fg-mute);transform:translateY(-1px)}
+.opt.def{border-color:var(--ink);box-shadow:0 0 0 2px var(--sunk2)}
+.opt .ot{font-size:14px;font-weight:620;display:flex;align-items:center;gap:7px}
+.opt .od{font-size:11.5px;color:var(--fg-mute);margin-top:4px;line-height:1.6;max-width:30ch}
+.defbadge{font-size:9.5px;font-weight:800;letter-spacing:.4px;border-radius:var(--r1);padding:1px 6px;
+  background:var(--ink);color:var(--on-ink)}
+.enterhint{margin:11px 0 0 40px;font-size:11.5px;color:var(--fg-mute);display:flex;align-items:center;gap:7px}
+kbd{font-family:var(--mono);font-size:10.5px;border:1px solid var(--line-hard);border-bottom-width:2px;
+  border-radius:var(--r1);padding:1px 6px;background:var(--card);color:var(--fg-dim)}
+/* 已答的收成一行，可点开重答 —— 对话式最容易丢的就是「回头看」 */
+.done{display:flex;align-items:center;gap:10px;background:var(--sunk);border:1px solid var(--line);
+  border-radius:var(--r2);padding:8px 13px;margin-bottom:9px;font-size:12.5px;color:var(--fg-dim)}
+.done .k{color:var(--fg-mute);flex:none}
+.done .v{font-weight:640;color:var(--fg)}
+.done .re{margin-left:auto;font-size:11.5px;color:var(--fg-mute);border-bottom:1px solid var(--line-hard)}
+.done .re:hover{color:var(--fg)}
+.done .ck{width:16px;height:16px;flex:none;border-radius:50%;background:var(--gold);color:var(--on-gold);
+  display:grid;place-items:center;font-size:9px;font-weight:800}
+
+/* ══════════ 流程 ② 作战板先行 ══════════ */
+/* 三个配置塌缩成一句话里的三个下拉 —— 这是「不像表单」的关键动作 */
+.sentence{font-family:var(--display);font-size:20px;line-height:2.05;font-weight:600;margin-top:6px}
+.slot{display:inline-flex;align-items:center;gap:6px;background:var(--card);border:1px solid var(--line-hard);
+  border-bottom-width:2px;border-radius:var(--r2);padding:1px 10px;font-family:var(--sans);
+  font-size:15px;font-weight:640;cursor:pointer;transition:.15s;vertical-align:1px}
+.slot:hover{border-color:var(--ink);background:var(--sunk)}
+.slot .car{font-size:9px;color:var(--fg-mute)}
+.slot.open{border-color:var(--ink);box-shadow:0 0 0 2px var(--sunk2)}
+.menu{position:absolute;z-index:40;background:var(--card);border:1px solid var(--line-hard);
+  border-radius:var(--r3);box-shadow:var(--shadow-lg);padding:6px;min-width:280px;display:none}
+.menu.on{display:block}
+.menu button{display:block;width:100%;text-align:left;padding:9px 11px;border-radius:var(--r2);font-size:13.5px}
+.menu button:hover{background:var(--sunk)}
+.menu button .d2{display:block;font-size:11.5px;color:var(--fg-mute);margin-top:2px;line-height:1.55}
+.menu button.on2{background:var(--gold-bg)}
+
+/* ══════════ 作战板（三个流程共用） ══════════ */
+.plan{background:var(--card);border:1px solid var(--line-hard);border-radius:var(--r5);
+  overflow:hidden;margin-top:22px;box-shadow:var(--shadow-sm)}
+.plan-h{padding:15px 22px;border-bottom:1px solid var(--line);background:var(--sunk);
+  display:flex;align-items:center;gap:11px;flex-wrap:wrap}
+.plan-h h3{font-size:11px;letter-spacing:1.3px;color:var(--fg-mute);font-weight:800}
+.plan-h .sum{margin-left:auto;font-size:12px;color:var(--fg-dim)}
+.plan-h .sum b{font-family:var(--mono)}
+.seg{border-bottom:1px solid var(--line);padding:15px 22px;display:flex;gap:14px;align-items:flex-start;transition:.18s}
+.seg:hover{background:var(--sunk)}
+.seg.off{opacity:.5}
+.seg .idx{width:24px;height:24px;flex:none;border-radius:50%;border:1px solid var(--line-hard);
+  display:grid;place-items:center;font-size:11.5px;font-weight:750;color:var(--fg-mute);margin-top:2px}
+.seg.on2 .idx{background:var(--gold);border-color:var(--gold);color:var(--on-gold)}
+.seg .m{flex:1;min-width:0}
+.seg .t1{font-family:var(--display);font-size:16px;font-weight:620;display:flex;align-items:center;gap:9px;flex-wrap:wrap}
+.dots{display:inline-flex;gap:3px;vertical-align:1px}
+.dots i{width:8px;height:8px;border-radius:50%;background:var(--sunk2);border:1px solid var(--line-hard)}
+.dots i.f{background:var(--gold);border-color:var(--gold)}
+.heat{font-size:10px;font-weight:750;border-radius:var(--rp);padding:1px 8px}
+.heat.厚{background:var(--gold-bg);color:var(--gold-ink);border:1px solid var(--gold-bd)}
+.heat.薄{background:var(--sunk2);color:var(--fg-mute);border:1px solid var(--line-hard)}
+.heat.无{background:var(--red-bg);color:var(--red-ink);border:1px solid var(--red-bd)}
+.seg .plan2{font-size:12.5px;color:var(--fg-dim);margin-top:6px;line-height:1.7}
+.seg .plan2 b{color:var(--fg)}
+.seg .base{font-size:11.5px;color:var(--fg-mute);margin-top:5px;line-height:1.6;
+  border-left:2px solid var(--line-hard);padding-left:10px}
+.seg .base em{font-style:normal;color:var(--fg-dim)}
+.seg .r2{flex:none;display:flex;flex-direction:column;gap:6px;align-items:flex-end}
+.tog{display:flex;align-items:center;gap:6px;font-size:11.5px;color:var(--fg-mute);
+  border:1px solid var(--line-hard);border-radius:var(--rp);padding:3px 10px;white-space:nowrap}
+.tog:hover{border-color:var(--fg-mute);color:var(--fg)}
+.tog.on3{background:var(--gold-bg);border-color:var(--gold-bd);color:var(--gold-ink);font-weight:640}
+.stepper{display:flex;align-items:center;gap:0;border:1px solid var(--line-hard);border-radius:var(--r2);overflow:hidden}
+.stepper button{width:24px;height:24px;display:grid;place-items:center;font-size:13px;color:var(--fg-mute)}
+.stepper button:hover{background:var(--sunk);color:var(--fg)}
+.stepper .v2{min-width:52px;text-align:center;font-size:11.5px;font-family:var(--mono);color:var(--fg-dim);
+  border-left:1px solid var(--line);border-right:1px solid var(--line);padding:2px 0}
+.gapbox{padding:14px 22px;background:var(--red-bg);border-top:1px solid var(--red-bd);
+  font-size:12.8px;color:var(--red-ink);line-height:1.75}
+.gapbox b{font-weight:750}
+.plan-f{padding:14px 22px;display:flex;gap:10px;align-items:center;flex-wrap:wrap;background:var(--sunk)}
+.plan-f small{margin-left:auto;font-size:11.5px;color:var(--fg-mute);text-align:right;line-height:1.5}
+.go{background:var(--ink);color:var(--on-ink);border-radius:var(--r3);padding:11px 22px;font-size:15px;font-weight:650}
+.go:hover{filter:brightness(1.25)}
+.ghost{border:1px solid var(--line-hard);border-radius:var(--r3);padding:11px 18px;font-size:14px;color:var(--fg-dim)}
+.ghost:hover{background:var(--card);color:var(--fg)}
+
+/* ══════════ 流程 ③ 直接进工作台 ══════════ */
+.wbsim{display:grid;grid-template-columns:44px 1fr 1fr 44px 300px;height:100%;min-height:0}
+.wbcol{border-right:1px solid var(--line);display:flex;flex-direction:column;min-width:0;background:var(--card)}
+.wbcol.tone{background:var(--sunk)}
+.wbcol:last-child{border-right:none}
+.wbmin{flex:1;display:flex;flex-direction:column;align-items:center;gap:9px;padding:12px 0;background:var(--sunk)}
+.wbmin .ic{width:24px;height:24px;border-radius:var(--r2);background:var(--sunk2);color:var(--fg-mute);
+  display:grid;place-items:center;font-size:11px}
+.wbmin .lbl{writing-mode:vertical-rl;font-size:11.5px;letter-spacing:2px;color:var(--fg-mute);font-weight:700}
+.wbh{flex:none;height:36px;display:flex;align-items:center;gap:7px;padding:0 12px;border-bottom:1px solid var(--line)}
+.wbh h4{font-size:10.5px;letter-spacing:1.2px;color:var(--fg-mute);font-weight:800;white-space:nowrap}
+.wbh .c{margin-left:auto;font-size:10px;font-weight:750;background:var(--gold-bg);color:var(--gold-ink);
+  border:1px solid var(--gold-bd);border-radius:var(--rp);padding:0 6px}
+.wbb{flex:1;min-height:0;overflow:auto;padding:13px 14px}
+.tbar2{flex:none;display:flex;align-items:center;gap:11px;padding:7px 16px;background:var(--card);
+  border-bottom:1px solid var(--line);font-size:12.5px;flex-wrap:wrap}
+.tbar2 .lb{font-size:9.5px;letter-spacing:1.2px;font-weight:800;color:var(--fg-mute)}
+.rstat{display:inline-flex;align-items:center;gap:5px;font-size:11.5px;color:var(--fg-dim);
+  border:1px solid var(--line);border-radius:var(--rp);padding:2px 9px;background:var(--sunk)}
+.rstat b{font-family:var(--mono);color:var(--fg)}
+.rstat i{width:8px;height:8px;border-radius:50%}
+.rstat.ok i{background:var(--blue)} .rstat.weak i{background:var(--gold)}
+.rstat.none i{background:var(--line-hard)} .rstat.gap i{background:var(--red)}
+/* 可关闭的开场条 —— 流程③ 里期待管理只剩这一条 */
+.optin{flex:none;display:flex;align-items:flex-start;gap:12px;padding:12px 18px;background:var(--gold-bg);
+  border-bottom:1px solid var(--gold-bd);font-size:12.8px;color:var(--gold-ink);line-height:1.7}
+.optin .a{margin-left:auto;display:flex;gap:8px;flex:none}
+.mini{font-size:11.5px;padding:5px 11px;border-radius:var(--r2);border:1px solid var(--gold-bd);
+  color:var(--gold-ink);background:var(--card);white-space:nowrap}
+.mini:hover{background:var(--gold-bg)}
+.mini.pri{background:var(--ink);border-color:var(--ink);color:var(--on-ink);font-weight:640}
+.qcard{background:var(--card);border:1px solid var(--line-hard);border-radius:var(--r4);
+  box-shadow:var(--shadow-sm);overflow:hidden}
+.qch{display:flex;align-items:center;gap:8px;padding:8px 14px;border-bottom:1px solid var(--line);
+  background:var(--sunk);font-size:10.5px;color:var(--fg-mute);font-weight:640}
+.dimtag{background:var(--card);border:1px solid var(--line-hard);border-radius:var(--r1);padding:1px 7px;color:var(--fg-dim)}
+.qcb{padding:14px 16px}
+.qq{font-family:var(--display);font-size:17px;line-height:1.65;font-weight:600}
+.why{margin-top:11px;background:var(--gold-bg);border-left:3px solid var(--gold);border-radius:0 var(--r2) var(--r2) 0;
+  padding:9px 13px;font-size:12.3px;color:var(--gold-ink);line-height:1.68}
+.why b{display:block;font-size:9.5px;letter-spacing:1.1px;margin-bottom:3px;color:var(--gold);font-weight:800}
+.acts{display:flex;gap:7px;flex-wrap:wrap;padding:0 16px 14px}
+.act{border:1px solid var(--line-hard);border-radius:var(--r2);padding:6px 12px;font-size:12.5px;color:var(--fg-dim);background:var(--card)}
+.act.go2{background:var(--ink);border-color:var(--ink);color:var(--on-ink);font-weight:620}
+.srcrow{background:var(--card);border:1px solid var(--line);border-radius:var(--r2);padding:8px 10px;margin-bottom:5px}
+.srcrow .nm{font-size:11.5px;font-weight:640;color:var(--fg-dim);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.srcrow .tx{font-size:10.8px;color:var(--fg-mute);margin-top:3px;line-height:1.5;
+  display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden}
+.bul{display:flex;gap:9px;font-size:13px;line-height:1.75;margin-bottom:10px}
+.bul .bd{color:#C4BCA8}
+.sg{border-radius:var(--r1);padding:1px 2px}
+.sg.s{background:var(--blue-bg);box-shadow:inset 0 -1px 0 var(--blue-bd)}
+.sg.gh{background:repeating-linear-gradient(105deg,#F0EDE4,#F0EDE4 6px,#E6E2D7 6px,#E6E2D7 12px);color:transparent}
+
+/* ── 完成态 ── */
+.donecard{background:var(--card);border:1px solid var(--gold-bd);border-radius:var(--r5);padding:26px 28px;
+  margin-top:22px;box-shadow:var(--shadow-sm)}
+.donecard h2{margin-bottom:8px}
+.donecard p{font-size:13.5px;color:var(--fg-dim);line-height:1.8}
+.stat3{display:grid;grid-template-columns:repeat(3,1fr);gap:10px;margin-top:18px}
+.st3{background:var(--sunk);border:1px solid var(--line);border-radius:var(--r3);padding:12px 14px}
+.st3 b{display:block;font-size:22px;font-weight:700;font-family:var(--mono);letter-spacing:-1px}
+.st3 span{font-size:11.5px;color:var(--fg-mute);line-height:1.5;display:block;margin-top:2px}
+
+@media(max-width:1100px){ .wbsim{grid-template-columns:44px 1fr 44px 280px} .wbsim .hidesm{display:none} }
+@media(max-width:820px){ .wbsim{grid-template-columns:1fr} .wbsim>*:not(.keep){display:none} .opts{margin-left:0} }
+@media(prefers-reduced-motion:reduce){*{animation-duration:.01ms!important;transition-duration:.01ms!important}}
+</style>
+</head>
+<body>
+
+<div class="top">
+  <div class="brand"><span class="dot"></span>投喂页 <small>三种交互流程</small></div>
+  <div class="fswitch">
+    <button class="on" id="f1" onclick="showFlow(1)"><span class="n">①</span>对话式开场</button>
+    <button id="f2" onclick="showFlow(2)"><span class="n">②</span>作战板先行</button>
+    <button id="f3" onclick="showFlow(3)"><span class="n">③</span>直接进工作台</button>
+  </div>
+  <div class="tr">
+    <span class="meter2">到「开始」为止 · 点击 <b id="clicks">0</b> 次</span>
+    <button class="gbtn" onclick="resetFlow()">重来</button>
+  </div>
+</div>
+
+<div class="note" id="noteBar"></div>
+
+<div class="stage">
+  <!-- ══════════════ ① 对话式开场 ══════════════ -->
+  <div class="flow on" id="flow1">
+    <div class="wrap">
+      <div class="kick2">从「机会」页点了「后端开发实习生 · 去补缺口」之后</div>
+      <h1 style="margin-top:11px">先对四句话，然后我给你一个方案。</h1>
+      <p class="lede">每一问都<b>已经替你选好了</b>，你只需要否决。一路回车也能过。</p>
+      <div id="chat" style="margin-top:26px"></div>
+    </div>
+  </div>
+
+  <!-- ══════════════ ② 作战板先行 ══════════════ -->
+  <div class="flow" id="flow2">
+    <div class="wrap wide">
+      <div class="kick2">从「机会」页点了「后端开发实习生 · 去补缺口」之后</div>
+      <h1 style="margin-top:11px">我已经配好了。<br>下面每一处都能改。</h1>
+      <p class="lede">一个问题都不问。三项配置塌缩成下面这句话里的三个下拉——<b>句子本身就是表单</b>。</p>
+      <div class="sentence" id="sentence"></div>
+      <div id="plan2"></div>
+    </div>
+  </div>
+
+  <!-- ══════════════ ③ 直接进工作台 ══════════════ -->
+  <div class="flow" id="flow3" style="height:100%">
+    <div style="display:flex;flex-direction:column;height:100%">
+      <div class="optin" id="optinBar">
+        <span>
+          <b>我按默认给这一场配好了：</b>目标 <b>后端开发实习生 · 某大厂</b> · 产出 <b>简历</b> ·
+          底稿 <b>实习简历 v3</b> · 打算挖 <b>① 推荐系统</b> 和 <b>② 限流中间件</b> 两段，共 6 轮。<br>
+          <span style="opacity:.85">JD 里有 2 条你确实没有（Kubernetes / Kafka），不会替你编。</span>
+        </span>
+        <span class="a">
+          <button class="mini" onclick="hit();openPlanPanel()">看方案 / 改配置</button>
+          <button class="mini pri" onclick="hit();closeOptin()">知道了，开始</button>
+        </span>
+      </div>
+      <div class="tbar2">
+        <span class="lb">目标</span>
+        <span style="font-weight:640">后端开发实习生<span style="color:var(--fg-mute);font-weight:500;margin-left:6px">某大厂 · 基础架构</span></span>
+        <span style="margin-left:auto;display:flex;gap:7px;flex-wrap:wrap">
+          <span class="rstat ok"><i></i>对上 <b>3</b></span>
+          <span class="rstat weak"><i></i>弱 <b>3</b></span>
+          <span class="rstat none"><i></i>还能问出 <b>6</b></span>
+          <span class="rstat gap"><i></i>确实没有 <b>2</b></span>
+        </span>
+      </div>
+      <div class="wbsim">
+        <div class="wbcol tone"><div class="wbmin"><span class="ic">◫</span><span class="lbl">材料</span></div></div>
+        <div class="wbcol keep">
+          <div class="wbh"><h4>GRILL · 一次一问</h4><span class="c num">1 / 6</span></div>
+          <div class="wbb">
+            <div class="qcard">
+              <div class="qch"><span class="dimtag">量化结果</span>第 1 轮 · 共 6 轮
+                <span style="margin-left:auto;font-size:9.5px;font-weight:750;background:var(--blue-bg);
+                  border:1px solid var(--blue-bd);color:var(--blue-ink);border-radius:var(--r1);padding:1px 7px">JD 缺口驱动</span></div>
+              <div class="qcb">
+                <div class="qq">你说“效果还可以”——具体是哪个指标、从多少变到多少？除了模型指标，业务侧发生了什么？</div>
+                <div class="why"><b>这一题是 JD 逼出来的</b>JD 第 7 条要「能用业务指标衡量自己的工作」。你的材料里有模型指标，<b>0 条</b>有业务指标。</div>
+              </div>
+              <div class="acts">
+                <button class="act go2" onclick="hit()">我来补充</button>
+                <button class="act" onclick="hit()">就按你猜的算</button>
+                <button class="act" onclick="hit()">跳过</button>
+                <button class="act" onclick="hit()">这问题没意义</button>
+              </div>
+            </div>
+            <p style="font-size:11.5px;color:var(--fg-mute);margin-top:14px;line-height:1.7">
+              ↑ <b>没有投喂页。</b>点「去补缺口」之后直接落在这里，第一个问题已经在等你了。<br>
+              所有配置都在既有面板里就地改：材料面板能拖进拖出，目标面板能换 JD、能改这一场挖哪几段。</p>
+          </div>
+        </div>
+        <div class="wbcol hidesm">
+          <div class="wbh"><h4>DYNAMIC RESUME · 活稿</h4><span class="c num">0</span></div>
+          <div class="wbb">
+            <div class="bul"><span class="bd">—</span><span>
+              <span class="sg s">Built a two-tower retrieval + LightGBM recommender serving 120k requests/day,</span>
+              <span class="sg gh">while driving +40% average session time and ~¥12k incremental daily GMV.</span></span></div>
+            <div class="bul"><span class="bd">—</span><span>
+              <span class="sg s">Traced a production P99 regression to the Faiss index being fully in memory,</span>
+              <span class="sg gh">benchmarked peak QPS at ~300 and shipped a sharded lazy-loading design.</span></span></div>
+            <p style="font-size:11px;color:var(--fg-mute);margin-top:12px;line-height:1.65">
+              灰色斜纹＝它知道自己不知道的地方。<br>这就是「草稿先行」的解药：<b>初稿一开场就承认自己缺什么</b>。</p>
+          </div>
+        </div>
+        <div class="wbcol tone hidesm"><div class="wbmin"><span class="ic">◱</span><span class="lbl">收获账本</span></div></div>
+        <div class="wbcol tone keep" id="planPanel">
+          <div class="wbh"><h4>目标 · 这一场的方案</h4><span class="c">可改</span></div>
+          <div class="wbb" id="plan3"></div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<div class="menu" id="menu"></div>
+
+<script>
+const $ = s => document.querySelector(s);
+const $$ = s => [...document.querySelectorAll(s)];
+
+/* ───────── 共享数据：三个流程用的是同一份 ───────── */
+const TARGETS = [
+  { id:'t1', label:'后端开发实习生 · 某大厂', kind:'实习', reqs:14, ok:3, weak:3, none:6, gap:2,
+    desc:'3 天前收藏 · 14 条要求' },
+  { id:'t2', label:'推荐系统方向 RA · XX 实验室', kind:'RA', reqs:8, ok:2, weak:2, none:2, gap:2,
+    desc:'上周收藏 · 8 条要求' },
+  { id:'t0', label:'先不设目标', kind:'—', reqs:0, ok:0, weak:0, none:0, gap:0,
+    desc:'只做通用打磨，提问全走通用维度' }
+];
+const OUTPUTS = [
+  { id:'o1', label:'简历', desc:'针对这个 JD 的 EXPERIENCE 段落' },
+  { id:'o2', label:'LinkedIn About', desc:'第一人称，长一点，不用对着 JD' },
+  { id:'o3', label:'60 秒自我介绍', desc:'口语，面试开场用' }
+];
+const BASES = [
+  { id:'b1', label:'实习简历 v3', desc:'3 天前存在工作区里的那份 · 5 条 bullet' },
+  { id:'b2', label:'上传一份新的', desc:'上传后它会变成材料库里的一条 crumb' },
+  { id:'b3', label:'从零开始', desc:'不用现成简历，只用 12 条 crumbs 起稿' }
+];
+/* 作战板：一份简历由多段经历组成 —— 这就是「单位＝产出物」的样子 */
+const SEGMENTS = [
+  { id:'s1', title:'校园二手交易平台 · 推荐系统', hit:4, heat:'厚', rounds:4, on:true,
+    plan:'性能取舍 / 带人 / 业务指标 / 动机',
+    base:'你简历第 2 条：<em>“负责推荐系统后端，做了大概半年”</em> —— 26 个字，零个数字' },
+  { id:'s2', title:'支付网关限流中间件', hit:2, heat:'薄', rounds:2, on:true,
+    plan:'为什么选令牌桶 / 上线后的数字',
+    base:'你简历第 3 条：<em>“Backend Engineer Intern”</em> —— 只有一个头衔' },
+  { id:'s3', title:'开源项目 README 重写', hit:0, heat:'无', rounds:0, on:false,
+    plan:'这份简历里用不上',
+    base:'和这个 JD 的 14 条要求没有交集' }
+];
+let state = { target:'t1', output:'o1', base:'b1', unit:'artifact', segs:{s1:true,s2:true,s3:false},
+              rounds:{s1:4,s2:2,s3:2} };
+let clicks = 0;
+function hit(){ clicks++; $('#clicks').textContent = clicks; }
+const T = () => TARGETS.find(x=>x.id===state.target);
+const O = () => OUTPUTS.find(x=>x.id===state.output);
+const B = () => BASES.find(x=>x.id===state.base);
+const totalRounds = () => SEGMENTS.filter(s=>state.segs[s.id]).reduce((a,s)=>a+state.rounds[s.id],0);
+
+/* ───────── 流程说明条 ───────── */
+const NOTES = {
+ 1:['① 对话式开场','一次一问，四问之后给方案。<b>每问都有默认答案</b>，可以一路回车。行业数据：同一套流程做成对话比做成表单，完成时间少 30–45%、流失从 40–60% 降到 15–22%。<b>代价</b>：到方案要 4 次点击，而且结构化的选择（挑哪几段经历）在对话里表达得笨。'],
+ 2:['② 作战板先行','<b>一个问题都不问。</b>三项配置塌缩成一句话里的三个下拉，系统直接把方案摆出来，你在方案上改。<b>代价</b>：一屏信息密度高；如果默认猜错，用户要在密集界面里找地方改。'],
+ 3:['③ 直接进工作台','<b>没有投喂页。</b>点「去补缺口」直接落进工作台，第一个问题已经在等。所有配置都在既有面板里就地改。<b>代价</b>：期待管理只剩顶上一条可关闭的横幅；新用户一上来就面对五个面板。']
+};
+function showFlow(n){
+  [1,2,3].forEach(i=>{ $('#flow'+i).classList.toggle('on', i===n); $('#f'+i).classList.toggle('on', i===n); });
+  $('#noteBar').innerHTML = `<span class="tag">${NOTES[n][0]}</span><span>${NOTES[n][1]}</span>`;
+  closeMenu();
+  clicks = 0; $('#clicks').textContent = 0;
+  if(n===1) renderChat();
+  if(n===2) renderFlow2();
+  if(n===3) renderPlan3();
+}
+function resetFlow(){
+  state = { target:'t1', output:'o1', base:'b1', unit:'artifact', segs:{s1:true,s2:true,s3:false},
+            rounds:{s1:4,s2:2,s3:2} };
+  step = 0; answered = [];
+  const cur = [1,2,3].find(i=>$('#flow'+i).classList.contains('on'));
+  $('#optinBar').style.display = '';
+  showFlow(cur);
+}
+
+/* ═════════ 流程 ① 对话式 ═════════ */
+let step = 0, answered = [];
+const QUESTIONS = [
+  { k:'unit', q:'这一场，是为了投一个具体的岗位，还是想把某一段经历讲清楚？',
+    sub:'这两件事的<b>工作单位</b>不一样：投岗位＝一份产出物（由好几段经历组成），讲经历＝一段。',
+    opts:[
+      { v:'artifact', t:'投一个岗位', d:'产出一份对着 JD 的稿子。你刚从「机会」页点进来，所以我默认是这个。', def:true },
+      { v:'experience', t:'打磨一段经历', d:'不对任何岗位，把某一段本身讲清楚。挖到的事实回流事实库。' }
+    ], show:v => v==='artifact' ? '投一个岗位' : '打磨一段经历' },
+  { k:'target', q:'投这个吗？', sub:'从「机会」页点进来的，已经填好了。',
+    opts:TARGETS.map((t,i)=>({ v:t.id, t:t.label, d:t.desc, def:i===0 })),
+    show:v => TARGETS.find(t=>t.id===v).label },
+  { k:'output', q:'产出什么？', sub:'按目标类型猜的：实习 JD → 简历。',
+    opts:OUTPUTS.map((o,i)=>({ v:o.id, t:o.label, d:o.desc, def:i===0 })),
+    show:v => OUTPUTS.find(o=>o.id===v).label },
+  { k:'base', q:'拿哪份稿子当底子？', sub:'<b>不用你手打任何东西</b>——底子来自你已有的简历和 12 条材料。',
+    opts:BASES.map((b,i)=>({ v:b.id, t:b.label, d:b.desc, def:i===0 })),
+    show:v => BASES.find(b=>b.id===v).label }
+];
+function renderChat(){
+  const box = $('#chat');
+  let html = answered.map((a,i)=>`
+    <div class="done"><span class="ck">✓</span><span class="k">${QUESTIONS[i].q.replace(/[？?].*$/,'')}</span>
+      <span class="v">${a}</span>
+      <button class="re" onclick="reopen(${i})">改</button></div>`).join('');
+  if(step < QUESTIONS.length){
+    const Q = QUESTIONS[step];
+    html += `<div class="turn"><div class="ask"><span class="ava">?</span>
+        <span><span class="qtx">${Q.q}</span><div class="qsub">${Q.sub}</div></span></div>
+      <div class="opts">${Q.opts.map(o=>`
+        <button class="opt${o.def?' def':''}" onclick="answer('${Q.k}','${o.v}')">
+          <span class="ot">${o.t}${o.def?'<span class="defbadge">已选</span>':''}</span>
+          <span class="od">${o.d}</span></button>`).join('')}</div>
+      <div class="enterhint"><kbd>↵</kbd> 直接用已选的　·　第 ${step+1} / ${QUESTIONS.length} 问</div></div>`;
+  }
+  box.innerHTML = html;
+  if(step >= QUESTIONS.length) box.insertAdjacentHTML('beforeend', planHTML('flow1'));
+  box.querySelector('.turn,.plan')?.scrollIntoView({block:'nearest',behavior:'smooth'});
+}
+function answer(k, v){
+  hit();
+  state[k] = v;
+  answered[step] = QUESTIONS[step].show(v);
+  step++;
+  renderChat();
+}
+function reopen(i){ hit(); step = i; answered = answered.slice(0,i); renderChat(); }
+document.addEventListener('keydown', e=>{
+  if(e.key !== 'Enter') return;
+  if(!$('#flow1').classList.contains('on') || step >= QUESTIONS.length) return;
+  e.preventDefault();
+  const Q = QUESTIONS[step]; answer(Q.k, Q.opts.find(o=>o.def).v);
+});
+
+/* ═════════ 流程 ② 句子里的三个下拉 ═════════ */
+function renderFlow2(){
+  $('#sentence').innerHTML =
+    `为 <button class="slot" onclick="openMenu(event,'target')">${T().label}<span class="car">▾</span></button>
+     组一份 <button class="slot" onclick="openMenu(event,'output')">${O().label}<span class="car">▾</span></button>，
+     底子用 <button class="slot" onclick="openMenu(event,'base')">${B().label}<span class="car">▾</span></button>。`;
+  $('#plan2').innerHTML = planHTML('flow2');
+}
+const MENUS = { target:TARGETS, output:OUTPUTS, base:BASES };
+function openMenu(e, key){
+  hit(); e.stopPropagation();
+  const m = $('#menu'), list = MENUS[key];
+  m.innerHTML = list.map(o=>`<button class="${state[key]===o.id?'on2':''}" onclick="pick('${key}','${o.id}')">
+      ${o.label}<span class="d2">${o.desc}</span></button>`).join('');
+  const r = e.currentTarget.getBoundingClientRect();
+  m.classList.add('on');
+  m.style.left = Math.min(r.left, innerWidth - m.offsetWidth - 16) + 'px';
+  m.style.top  = (r.bottom + 6) + 'px';
+  $$('.slot').forEach(s=>s.classList.remove('open'));
+  e.currentTarget.classList.add('open');
+}
+function pick(key, id){ hit(); state[key] = id; closeMenu(); renderFlow2(); }
+function closeMenu(){ $('#menu').classList.remove('on'); $$('.slot').forEach(s=>s.classList.remove('open')); }
+document.addEventListener('click', closeMenu);
+
+/* ═════════ 作战板：三个流程共用同一段渲染 ═════════ */
+function planHTML(where){
+  const t = T(), on = SEGMENTS.filter(s=>state.segs[s.id]);
+  if(t.id === 't0'){
+    return `<div class="plan"><div class="plan-h"><h3>这一场的方案</h3>
+        <span class="sum">没设目标 · 通用打磨</span></div>
+      <div style="padding:18px 22px;font-size:13px;color:var(--fg-dim);line-height:1.8">
+        没有 JD，就没有「对上几条」这件事。<br>
+        这一场会走通用维度：动机 / 角色边界 / 关键决策 / 量化结果 / 真实困难 / 判断与协作。</div>
+      <div class="plan-f"><button class="go" onclick="hit();finish('${where}')">开始拷问 →</button></div></div>`;
+  }
+  return `<div class="plan">
+    <div class="plan-h"><h3>为「${t.label}」组这份${O().label}，我打算这样</h3>
+      <span class="sum">共 <b>${t.reqs}</b> 条要求 · 现在对上 <b>${t.ok}</b> · 计划挖 <b class="num">${totalRounds()}</b> 轮</span></div>
+    ${SEGMENTS.map((s,i)=>`
+      <div class="seg${state.segs[s.id]?' on2':' off'}">
+        <span class="idx">${i+1}</span>
+        <span class="m">
+          <span class="t1">${s.title}
+            <span class="dots">${[0,1,2,3,4,5].map(k=>`<i class="${k<s.hit?'f':''}"></i>`).join('')}</span>
+            <span class="heat ${s.heat}">${s.hit ? '对上 JD '+s.hit+' 条' : '对不上'}</span></span>
+          <span class="plan2">${state.segs[s.id]
+            ? `建议挖 <b>${state.rounds[s.id]}</b> 轮：${s.plan}`
+            : `<span style="color:var(--fg-mute)">${s.plan}</span>`}</span>
+          <span class="base">底子：${s.base}</span>
+        </span>
+        <span class="r2">
+          <button class="tog${state.segs[s.id]?' on3':''}" onclick="hit();toggleSeg('${s.id}','${where}')">
+            ${state.segs[s.id]?'✓ 放进这份':'＋ 我还是想放'}</button>
+          ${state.segs[s.id]?`<span class="stepper">
+            <button onclick="hit();bumpRounds('${s.id}',-1,'${where}')">−</button>
+            <span class="v2">${state.rounds[s.id]} 轮</span>
+            <button onclick="hit();bumpRounds('${s.id}',1,'${where}')">＋</button></span>`:''}
+        </span>
+      </div>`).join('')}
+    <div class="gapbox"><b>JD 里有 ${t.gap} 条你确实没有</b>：熟悉 Kubernetes / 容器化部署、有消息队列（Kafka / Pulsar）使用经验。<br>
+      <b>不会替你编。</b>这两条不会出现在成稿里，成果页会明说——那是去补技能的信号，不是去补文案的信号。</div>
+    <div class="plan-f">
+      <button class="go" onclick="hit();finish('${where}')">就按这个开始 · ${totalRounds()} 轮</button>
+      <button class="ghost" onclick="hit();onlyFirst('${where}')">先只挖第 ① 段</button>
+      <small>${on.length} 段经历 · 约 ${Math.max(2, Math.round(totalRounds()*0.8))} 分钟<br>
+        你一个字都不用打——底子来自简历和材料</small></div>
+  </div>`;
+}
+function repaint(where){
+  if(where === 'flow1') renderChat();
+  else if(where === 'flow2') renderFlow2();
+  else renderPlan3();
+}
+function toggleSeg(id, where){ state.segs[id] = !state.segs[id]; repaint(where); }
+function bumpRounds(id, d, where){ state.rounds[id] = Math.max(1, Math.min(6, state.rounds[id]+d)); repaint(where); }
+function onlyFirst(where){ state.segs = {s1:true,s2:false,s3:false}; repaint(where); }
+function finish(where){
+  const html = `<div class="donecard">
+      <h2>这一场开始了。</h2>
+      <p>接下来就是你已经见过的工作台：材料 / 拷问 / 简历活稿 / 收获账本 / 目标 JD 五个面板。<br>
+        这一屏之后<b>不会再要求你填任何东西</b>——想自己写的时候，中栏底部那个常驻输入框一直在。</p>
+      <div class="stat3">
+        <div class="st3"><b>${clicks}</b><span>从进页面到开始<br>你点了几次</span></div>
+        <div class="st3"><b>0</b><span>你手打了几个字</span></div>
+        <div class="st3"><b>${totalRounds()}</b><span>这一场要问几轮</span></div>
+      </div>
+      <p style="margin-top:16px;font-size:12.5px;color:var(--fg-mute)">
+        BEFORE 不再是「你在我们框里打的一段话」，而是<b>你现有简历里的那几条</b>。</p>
+    </div>`;
+  if(where === 'flow1'){ $('#chat').insertAdjacentHTML('beforeend', html);
+    $('#chat').lastElementChild.scrollIntoView({block:'center',behavior:'smooth'}); }
+  else if(where === 'flow2'){ $('#plan2').innerHTML = planHTML('flow2') + html;
+    $('#plan2').lastElementChild.scrollIntoView({block:'center',behavior:'smooth'}); }
+  else { $('#plan3').innerHTML = html.replace('stat3','stat3'); }
+}
+
+/* ═════════ 流程 ③ ═════════ */
+function renderPlan3(){
+  $('#plan3').innerHTML = `
+    <p style="font-size:11.5px;color:var(--fg-mute);line-height:1.7;margin-bottom:11px">
+      这个面板本来就在工作台里（第五个，默认收起）。<br><b>流程 ③ 把它当成作战板用</b>——不用再造一个投喂页。</p>
+    ${SEGMENTS.map((s,i)=>`
+      <div class="srcrow" style="${state.segs[s.id]?'':'opacity:.55;border-style:dashed'}">
+        <div class="nm">${i+1}. ${s.title}</div>
+        <div class="tx">${state.segs[s.id]?`挖 ${state.rounds[s.id]} 轮 · ${s.plan}`:s.plan}</div>
+        <div style="display:flex;gap:6px;margin-top:7px">
+          <button class="tog${state.segs[s.id]?' on3':''}" style="font-size:10.5px;padding:2px 8px"
+            onclick="hit();toggleSeg('${s.id}','flow3')">${state.segs[s.id]?'✓ 放':'＋ 放'}</button>
+          ${state.segs[s.id]?`<span class="stepper" style="transform:scale(.88);transform-origin:left">
+            <button onclick="hit();bumpRounds('${s.id}',-1,'flow3')">−</button>
+            <span class="v2">${state.rounds[s.id]} 轮</span>
+            <button onclick="hit();bumpRounds('${s.id}',1,'flow3')">＋</button></span>`:''}
+        </div>
+      </div>`).join('')}
+    <div style="background:var(--red-bg);border:1px solid var(--red-bd);border-radius:var(--r2);
+      padding:9px 11px;font-size:11px;color:var(--red-ink);line-height:1.65;margin-top:9px">
+      <b>2 条你确实没有</b>：Kubernetes、Kafka。不会替你编。</div>`;
+}
+function openPlanPanel(){ $('#planPanel').scrollIntoView({block:'nearest',behavior:'smooth'}); }
+function closeOptin(){ $('#optinBar').style.display = 'none'; }
+
+showFlow(1);
+</script>
+</body>
+</html>

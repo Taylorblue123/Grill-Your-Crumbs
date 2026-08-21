@@ -10,6 +10,7 @@ and shows where every generated segment came from.
 |---|---|
 | `prototype/grill-demo.html` | **交互原型，单文件。双击就能开** —— 无后端、无依赖、无网络请求 |
 | `prototype/skins/` | 同一个原型的三套视觉，皮肤已钉死，方便分别打开 / 分享 |
+| `prototype/intake/` | **投喂页三种交互流程对比**（对话式 / 作战板先行 / 直接进工作台），带点击计数器 |
 | `prototype/src/` | 原型的源码（`head.html` 样式 / `body.html` 结构 / `app.js` 逻辑 / `data.js` 假数据） |
 | `prototype/build.sh` | 把上面四个文件拼成单文件；改完源码跑一下就行 |
 | `prototype/README.md` | **设计说明**：五屏动线、四面板系统、每个设计决策和它的理由、已知未做的部分 |
