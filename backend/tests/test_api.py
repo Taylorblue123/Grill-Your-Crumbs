@@ -16,6 +16,8 @@ def make_client(tmp_path: Path, max_upload_bytes: int = 1024 * 1024) -> TestClie
         database_path=tmp_path / "grill.db",
         upload_dir=tmp_path / "uploads",
         prototype_path=prototype,
+        # 不指向真实的 frontend/dist：这些用例测的是 API，不该依赖前端构建过没有。
+        frontend_dist=tmp_path / "frontend-dist",
         max_upload_bytes=max_upload_bytes,
         demo_user_id=DEMO_USER,
     )

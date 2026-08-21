@@ -12,6 +12,7 @@ class Settings:
     database_path: Path
     upload_dir: Path
     prototype_path: Path
+    frontend_dist: Path
     max_upload_bytes: int = 10 * 1024 * 1024
     demo_user_id: str = "00000000-0000-0000-0000-000000000001"
 
@@ -29,6 +30,11 @@ class Settings:
                     "GRILL_PROTOTYPE_PATH",
                     str(REPO_DIR / "prototype" / "grill-demo.html"),
                 )
+            ).expanduser(),
+            # React 前端的构建产物（frontend/ 里 `npm run build` 的结果）。
+            # 存在就由它接管 `/`，否则回落到单文件原型，两种部署都能跑。
+            frontend_dist=Path(
+                os.getenv("GRILL_FRONTEND_DIST", str(REPO_DIR / "frontend" / "dist"))
             ).expanduser(),
             max_upload_bytes=int(os.getenv("GRILL_MAX_UPLOAD_BYTES", str(10 * 1024 * 1024))),
             demo_user_id=os.getenv(

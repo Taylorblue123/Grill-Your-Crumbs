@@ -9,6 +9,7 @@ from uuid import UUID, uuid4
 from fastapi import Depends, FastAPI, File, Form, Header, HTTPException, Response, UploadFile, status
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import FileResponse
+from fastapi.staticfiles import StaticFiles
 
 from .config import Settings
 from .database import Database
@@ -204,11 +205,23 @@ def create_app(settings: Optional[Settings] = None) -> FastAPI:
             if upload_root in storage_path.parents:
                 storage_path.unlink(missing_ok=True)
 
+    # React 前端的静态资源。只在构建过之后挂载 —— 跑后端测试时 dist/ 不存在是正常的。
+    frontend_assets = app_settings.frontend_dist / "assets"
+    if frontend_assets.is_dir():
+        app.mount("/assets", StaticFiles(directory=str(frontend_assets)), name="assets")
+
     @app.get("/", include_in_schema=False)
-    def prototype() -> FileResponse:
-        if not app_settings.prototype_path.exists():
-            raise HTTPException(status_code=404, detail="Build prototype/grill-demo.html first")
-        return FileResponse(str(app_settings.prototype_path), media_type="text/html")
+    def index() -> FileResponse:
+        """有 React 构建产物就服务它，否则回落到单文件原型。"""
+        spa_index = app_settings.frontend_dist / "index.html"
+        if spa_index.exists():
+            return FileResponse(str(spa_index), media_type="text/html")
+        if app_settings.prototype_path.exists():
+            return FileResponse(str(app_settings.prototype_path), media_type="text/html")
+        raise HTTPException(
+            status_code=404,
+            detail="Build the frontend (cd frontend && npm run build) or run prototype/build.sh",
+        )
 
     return app
 

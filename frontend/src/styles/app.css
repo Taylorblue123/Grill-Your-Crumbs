@@ -1,0 +1,76 @@
+/* ════════════════════════════════════════════════════════════
+   React 版新增的少量样式
+
+   design-system.css 是原型那套 token + 组件层，原样保留。
+   这里只放两类东西：
+     1. React 挂载点 / 受控表单元素需要的结构性补丁
+     2. 原型没有的新能力（删除已上传材料、后端状态）所需的样式
+   都继续只用语义变量，三套皮肤和深浅色自动跟上。
+   ════════════════════════════════════════════════════════════ */
+
+#root { height: 100%; }
+
+/* 原型用 contenteditable + 手插光标做打字动画；React 版换成受控 textarea，
+   所以要把浏览器默认的外观洗掉，让它看起来仍然是「一行会长高的输入区」。 */
+textarea.cp-in {
+  border: 0;
+  background: none;
+  resize: none;
+  padding: 0;
+  font-family: inherit;
+  display: block;
+  width: 100%;
+}
+textarea.cp-in::placeholder { color: var(--fg-mute); }
+/* 打字动画进行中，用一条闪动的右边框冒充光标 —— 受控 textarea 塞不进 span。 */
+.cp-box.typing textarea.cp-in {
+  border-right: 1.5px solid var(--gold);
+  animation: blink .85s steps(1) infinite;
+}
+
+/* 删除一条已上传的材料：只有后端来的 crumb 有这个入口，
+   演示样例仍然显示 ✓（它们没有后端记录，删了会造成前后端不一致）。 */
+.cr .crx {
+  flex: none;
+  width: 20px;
+  height: 20px;
+  border-radius: var(--r2);
+  display: grid;
+  place-items: center;
+  font-size: 11px;
+  color: var(--fg-mute);
+  border: 1px solid var(--line);
+  background: var(--card);
+  transition: .15s;
+}
+.cr .crx:hover:not([disabled]) {
+  color: var(--red);
+  border-color: var(--red-bd);
+  background: var(--red-bg);
+}
+.cr .crx[disabled] { opacity: .45; cursor: not-allowed; }
+
+/* 后端状态：只在离线时出现，因为「一切正常」不值得占顶栏一格。 */
+.bstate {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  height: 32px;
+  padding: 0 11px;
+  border-radius: var(--r2);
+  border: 1px solid var(--red-bd);
+  background: var(--red-bg);
+  color: var(--red-ink);
+  font-size: 11.5px;
+  white-space: nowrap;
+  flex: none;
+}
+.bstate i {
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: var(--red);
+  flex: none;
+  font-style: normal;
+}
+@media (max-width: 900px) { .bstate span { display: none; } }
