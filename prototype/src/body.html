@@ -218,7 +218,7 @@
   </div>
 </section>
 
-<!-- ══════════════ ② 投喂（两种方式） ══════════════ -->
+<!-- ══════════════ ② 作战板先行（原投喂页） ══════════════ -->
 <section class="screen" id="s-setup">
   <div class="top">
     <div class="brand"><span class="dot"></span>Grill Your Crumbs</div>
@@ -231,86 +231,24 @@
     </div>
   </div>
   <div class="scroll">
-    <div class="setup">
-      <div class="kick2">第 ① 步 · 投喂</div>
-      <h1>这一场，我们从<em>哪儿</em>开始？</h1>
-      <p class="lede">两条路都行。你心里已经有那段想改的经历，就自己写；<b>没想好写哪段，就让我从你的材料里挑</b>。</p>
+    <div class="setup wide">
+      <div class="kick2" id="planKick">从「机会」页点了「去补缺口」之后</div>
+      <h1>我已经配好了。<br>下面<em>每一处都能改</em>。</h1>
+      <p class="lede">一个问题都不问。三项配置就在下面这句话里——<b>句子本身就是表单</b>。
+        你一个字都不用打：底子来自你已有的简历和 12 条材料。</p>
 
-      <div class="ways">
-        <button class="way on" id="wayA" onclick="setWay('write')">
-          <span class="wt"><span class="i">A</span>我有一段想改的经历</span>
-          <p>粘一段你自己写的（通常很干巴），它会成为最后对比用的基准。适合已经有简历、想改某一条的人。</p>
-        </button>
-        <button class="way" id="wayB" onclick="setWay('pick')">
-          <span class="wt"><span class="i">B</span>从我的材料里挑一段</span>
-          <p><b>一个字都不用写。</b>我先把你的 crumbs 聚成几段能讲的经历，告诉你每段有多厚、缺口在哪，你挑一个就开始。</p>
-        </button>
-      </div>
+      <!-- 三项配置塌缩成一句话 -->
+      <div class="sentence" id="sentence"></div>
 
-      <!-- ── 方式 A ── -->
-      <div class="wayBody on" id="bodyWrite">
-        <div class="blk">
-          <div class="blab">这段经历 <i>必填</i></div>
-          <textarea class="ta" id="ta" aria-label="你的原始经历"></textarea>
-          <div class="hint">↑ 这段是<b>基准</b>：一个字都不会被改动，最后要和成稿并排对比。<span id="taCount" class="num"></span></div>
-        </div>
-      </div>
+      <!-- 作战板 -->
+      <div id="planBox"></div>
 
-      <!-- ── 方式 B ── -->
-      <div class="wayBody" id="bodyPick">
-        <div class="blk">
-          <div class="blab">我从 12 条材料里聚出了这几段 <i>点一个开始</i></div>
-          <div class="expopts" id="expOpts"></div>
-          <div class="picked" id="pickedBox"></div>
-        </div>
-      </div>
-
-      <div class="blk">
-        <div class="blab">① 产出什么 <i>格式</i></div>
-        <div class="chips" id="forx"></div>
-      </div>
-
-      <div class="blk">
-        <div class="blab">② 为谁做 <i>TARGET · 可留空</i></div>
-        <div class="tgopts" id="tgOpts"></div>
-        <div class="jdpaste" id="jdPaste" style="display:none">
-          <textarea class="ta" id="jdText" aria-label="粘贴 JD 原文"
-            placeholder="把岗位描述整段粘进来——职责、要求、加分项都要。我会拆成一条一条的要求，再告诉你哪几条你其实有、哪几条只有你能补、哪几条你确实没有。"></textarea>
-          <div class="hint" style="display:flex;gap:9px;align-items:center;flex-wrap:wrap">
-            <button class="gbtn" onclick="parseJD()">解析这段 JD →</button>
-            <span>解析完你会看到一张<b>要求清单</b>，不是一句「匹配度 78%」。</span>
-          </div>
-        </div>
-        <div id="tgSummary"></div>
-      </div>
-
-      <div class="blk">
-        <div class="blab">本场装载的 Crumbs <i>进了工作台还能随时增减</i></div>
-        <div class="crumbgrid" id="crumbgrid"></div>
-        <div class="hint" id="crumbHint"></div>
-      </div>
-
-      <div class="expect">
-        <div class="eh">接下来会发生什么 <em>约 5 分钟 · 6 轮 · 随时可退出</em></div>
-        <div class="esteps">
-          <div class="es"><div class="i">①</div><h5>投喂</h5><p>你现在在这里。</p></div>
-          <div class="es"><div class="i">②</div><h5>一次一问</h5><p>6 轮，每题带「我为什么问这个」和一个猜测答案。</p></div>
-          <div class="es"><div class="i">③</div><h5>四个面板同步长</h5><p>材料 · 拷问 · 简历活稿 · 收获账本。每个都能收到边上或放大。</p></div>
-          <div class="es"><div class="i">④</div><h5>成果 → 回工作区</h5><p>这段经历会变厚一截，产出物挂在它下面。</p></div>
-        </div>
-        <div class="ep">
-          <ul>
-            <li><i>✓</i><span>每题都先给<b>猜测答案</b>——点头就行，不用从头打字。</span></li>
-            <li><i>✓</i><span>任何一轮、任何一条新事实都能<b>撤回</b>，简历稿会跟着回退（<b>⌘Z / Ctrl+Z</b>）。</span></li>
-            <li><i>✓</i><span>问得烂就点<b>「这问题没意义」</b>——它会承认，并换一个只有你能答的。</span></li>
-            <li><i>✓</i><span>我们不会给你「完成度 78%」这种数字。<b>没人能确定你讲完了没有</b>，所以我们只报能数清的：多挖到了几条、进稿几句。</span></li>
-          </ul>
-        </div>
-      </div>
-
-      <div class="gostrip">
-        <button class="go" id="startBtn" onclick="go('wb')">开始拷问 →</button>
-        <small>预计 6 轮 · 中途随时可以点「够了，出稿」<br>不满意可以回到这里换一段，已挖到的内容不会丢</small>
+      <!-- 期待管理压缩成一行，不再是一张大卡 -->
+      <div class="promise" style="margin-top:22px">
+        <span class="pm"><em>✓</em> 每题先给<b>猜测答案</b>，点头就行</span>
+        <span class="pm"><em>✓</em> 任何一轮都能<b>撤回</b>，稿子跟着回退</span>
+        <span class="pm"><em>✓</em> 问得烂就点「这问题没意义」</span>
+        <span class="pm"><em>✓</em> JD 里你确实没有的，<b>不会替你编</b></span>
       </div>
     </div>
   </div>
@@ -556,6 +494,7 @@
 
 </div>
 
+<div class="smenu" id="smenu"></div>
 <div id="pop" role="tooltip"></div>
 <div class="toast" id="toast" role="status"></div>
 <div class="autobar" id="autobar">

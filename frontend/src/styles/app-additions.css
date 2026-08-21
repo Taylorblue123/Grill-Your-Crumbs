@@ -1,0 +1,114 @@
+/* ============================================================
+   本次重构新增的样式。只有三类，其余一律复用 design-system.css：
+
+   ① 附件上传：设计稿里没有这块（后端切片做出来之后才有）。
+      沿用 agent/agent/01a0237b 那版原型定下的 .upload* 类名和视觉，
+      不自造第二套语言。
+   ② 后端状态标注：哪些数据是真的、哪些是虚构样例，得在界面上说清楚。
+   ③ 窄屏工作台：设计稿的五面板在手机上放不下（46px×4 ＋ 300px 已经
+      超过 390px 视口）。这里让窄屏一次只显示一个面板，面板条变成选项卡。
+      这是可用性必需的响应式调整，不是重新设计。
+   ============================================================ */
+
+/* ① 附件上传 ------------------------------------------------ */
+.upload {
+  display: flex; align-items: center; gap: 16px;
+  background: var(--card); border: 1px dashed var(--line-hard);
+  border-radius: var(--r4); padding: 14px 16px; margin-bottom: 10px;
+  transition: .15s; cursor: pointer; width: 100%; text-align: left;
+}
+.upload:hover, .upload.over { border-color: var(--blue); background: var(--blue-bg); }
+.upload.busy { cursor: progress; opacity: .82; }
+.upload[disabled] { cursor: not-allowed; opacity: .6; }
+.upload-main { display: flex; align-items: center; gap: 11px; min-width: 0; flex: 1; color: var(--fg-dim); }
+.upload-main > span:last-child { display: grid; gap: 2px; font-size: 13px; line-height: 1.5; }
+.upload-main small { font-size: 11px; color: var(--fg-mute); font-weight: 500; }
+.upload-ic {
+  width: 30px; height: 30px; display: grid; place-items: center; flex: none;
+  border-radius: var(--r3); background: var(--blue-bg); border: 1px solid var(--blue-bd);
+  color: var(--blue); font-size: 20px; line-height: 1;
+}
+.upload-kind { display: grid; gap: 3px; font-size: 10px; color: var(--fg-mute); white-space: nowrap; }
+.upload-kind select {
+  min-width: 118px; background: var(--sunk); border: 1px solid var(--line-hard);
+  border-radius: var(--r2); padding: 5px 8px; color: var(--fg-dim); font-size: 11.5px;
+}
+.upload-list { display: grid; gap: 6px; margin-bottom: 10px; }
+.upload-row {
+  display: grid; grid-template-columns: minmax(0, 1fr) 130px; gap: 10px; align-items: center;
+  border: 1px solid var(--line); border-radius: var(--r3); padding: 8px 11px;
+  background: var(--sunk); font-size: 11.5px;
+}
+.upload-row .un { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: var(--fg-dim); }
+.upload-row .us { display: flex; align-items: center; justify-content: flex-end; gap: 7px; color: var(--fg-mute); }
+.upload-row .bar { height: 3px; width: 58px; background: var(--sunk2); border-radius: var(--rp); overflow: hidden; }
+.upload-row .bar i { display: block; height: 100%; background: var(--blue); transition: width .15s; }
+.upload-row.ok { border-color: var(--blue-bd); background: var(--blue-bg); }
+.upload-row.ok .us { color: var(--blue-ink); }
+.upload-row.err { border-color: var(--red-bd); background: var(--red-bg); }
+.upload-row.err .us { color: var(--red-ink); justify-content: flex-start; }
+.upload-privacy { font-size: 11.5px; color: var(--fg-mute); line-height: 1.6; margin: 0 2px 11px; }
+
+/* ② 真实 / 虚构的诚实标注 ------------------------------------ */
+.origin-tag {
+  font-size: 9.5px; font-weight: 750; letter-spacing: .3px; border-radius: var(--rp);
+  padding: 1px 7px; white-space: nowrap; flex: none;
+}
+.origin-tag.live { background: var(--blue-bg); color: var(--blue-ink); border: 1px solid var(--blue-bd); }
+.origin-tag.sample { background: var(--sunk2); color: var(--fg-mute); border: 1px solid var(--line-hard); }
+.backend-chip {
+  display: inline-flex; align-items: center; gap: 6px; font-size: 11.5px; white-space: nowrap;
+  border: 1px solid var(--line-hard); border-radius: var(--rp); padding: 4px 11px; color: var(--fg-mute);
+}
+.backend-chip i { width: 7px; height: 7px; border-radius: 50%; background: var(--fg-mute); flex: none; }
+.backend-chip.online { border-color: var(--blue-bd); color: var(--blue-ink); background: var(--blue-bg); }
+.backend-chip.online i { background: var(--blue); }
+.backend-chip.offline { border-color: var(--line-hard); }
+@media (max-width: 900px) { .backend-chip span { display: none; } }
+
+.scell .a2 { display: flex; gap: 6px; margin-top: 8px; }
+.scell .t1 .origin-tag { margin-left: auto; }
+
+/* 加载 / 出错的整屏占位 —— 不让用户对着空白页猜 */
+.boot {
+  flex: 1; display: grid; place-items: center; padding: 40px; text-align: center;
+  color: var(--fg-mute); font-size: 13.5px; line-height: 1.8;
+}
+.boot h2 { font-family: var(--display); font-size: 18px; color: var(--fg); margin-bottom: 8px; }
+
+/* ③ 窄屏工作台：一次一个面板 -------------------------------- */
+@media (max-width: 760px) {
+  .panels.stacked { grid-template-columns: 1fr !important; }
+  .panels.stacked > .panel { display: flex; }
+  .panels.stacked > .panel[hidden] { display: none; }
+  .panels.stacked > .panel .panel-min { display: none; }
+  .panelbar { overflow-x: auto; }
+  .barToggle { display: none; }
+  .tbar .score { flex-wrap: wrap; }
+}
+
+/* ④ 输入框：contenteditable → textarea 的最小 reset。视觉不变。 */
+textarea.cp-in {
+  resize: none; border: 0; background: transparent; font-family: inherit;
+  padding: 0; display: block; width: 100%;
+}
+textarea.cp-in::placeholder { color: var(--fg-mute); }
+textarea.cp-in:disabled { opacity: .6; cursor: not-allowed; }
+
+/* ⑤ 窄屏顶栏：品牌 ＋ 四个动作在 390px 上放不下，「够了，出稿 →」会被
+   .screen 的 overflow:hidden 裁掉，等于主操作在手机上点不到。
+   处理办法是让顶栏可横向滚，并把品牌收成一个点 —— 动作一个都不藏。 */
+@media (max-width: 760px) {
+  .top {
+    overflow-x: auto;
+    overflow-y: hidden;
+    scrollbar-width: none;
+    gap: 10px;
+    padding: 0 12px;
+  }
+  .top::-webkit-scrollbar { display: none; }
+  .top > * { flex: none; }
+  .brand { font-size: 0; gap: 0; }
+  .brand .dot { margin-right: 0; }
+  .tr { margin-left: auto; gap: 6px; }
+}

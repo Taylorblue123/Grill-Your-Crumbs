@@ -8,15 +8,27 @@ and shows where every generated segment came from.
 
 | 路径 | 是什么 |
 |---|---|
+| `frontend/` | **产品前端**：React ＋ JavaScript ＋ Vite。材料上传已接后端，其余接口仍是 mock |
 | `prototype/grill-demo.html` | **交互原型，单文件。双击就能开** —— 无后端、无依赖、无网络请求 |
 | `prototype/skins/` | 同一个原型的三套视觉，皮肤已钉死，方便分别打开 / 分享 |
 | `prototype/intake/` | **投喂页三种交互流程对比**（对话式 / 作战板先行 / 直接进工作台），带点击计数器 |
 | `prototype/src/` | 原型的源码（`head.html` 样式 / `body.html` 结构 / `app.js` 逻辑 / `data.js` 假数据） |
 | `prototype/build.sh` | 把上面四个文件拼成单文件；改完源码跑一下就行 |
 | `prototype/README.md` | **设计说明**：五屏动线、四面板系统、每个设计决策和它的理由、已知未做的部分 |
+| `backend/` | **可运行的首个后端切片**：附件上传、文本提取、去重、Crumb 持久化和 API 测试 |
 | `docs/backend-schema.md` | 后端数据表方案（Postgres DDL）＋ 标签词表 ＋ 评测事件表 |
+| `docs/backend-api.md` | 附件 API 契约、前后端边界、生产化前必须补的安全能力 |
 | `docs/visual-directions.md` | **三套视觉方案**：调研依据、四轴对比、各自赌什么/代价、实现方式 |
 | `PRODUCT.md` | 产品定位与设计原则 |
+
+## 跑前端
+
+```sh
+cd frontend && npm install && npm run dev     # http://localhost:5173
+```
+
+要体验真实的材料上传，另开一个终端起后端（见下）。后端不在也能跑，
+只是上传不可用，顶栏会明说「后端未连接」。细节见 `frontend/README.md`。
 
 ## 跑原型
 
@@ -31,6 +43,17 @@ open prototype/grill-demo.html      # macOS
 ```sh
 ./prototype/build.sh
 ```
+
+要体验真实附件上传，请通过后端打开 demo（直接双击仍保留纯静态演示能力）：
+
+```sh
+python3 -m venv .venv
+.venv/bin/pip install -r backend/requirements-dev.txt
+./prototype/build.sh
+.venv/bin/uvicorn app.main:app --app-dir backend --reload
+```
+
+然后打开 <http://127.0.0.1:8000>；接口文档在 `/docs`。
 
 ## 原型现在演示了什么
 
@@ -52,4 +75,9 @@ open prototype/grill-demo.html      # macOS
 
 ## 状态
 
-原型阶段。还没有应用代码和后端实现；`docs/backend-schema.md` 是落库方案的提案。
+- **前端**：`frontend/` 是按 `prototype/grill-demo.html` 实现的 React 应用，五屏齐全，
+  Playwright 全流程验收通过。
+- **后端**：只有「附件 → crumb」这一条竖切是可运行的；targets / threads / turns /
+  facts / artifacts 仍是 `docs/backend-api.md` 里的契约提案，前端用 mock adapter 顶着，
+  界面上如实标注。
+- **原型**：`prototype/` 保留为视觉与交互的参照物。

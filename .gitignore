@@ -16,3 +16,9 @@ data/
 .agent_context/
 .multica/
 AGENTS.md
+
+# frontend 构建与验收产物
+playwright-report/
+test-results/
+.runlogs/
+shots/
