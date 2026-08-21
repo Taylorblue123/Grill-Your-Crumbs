@@ -29,6 +29,9 @@ let sessionCrumbs = new Set(CRUMBS.filter(c=>!c.off).map(c=>c.id));
 let undoStack = [], sessionSaved = false;
 let intakeWay = 'write', pickedExp = 'e1', ledgerKey = 'dim';
 let targetId = 'tg1', jdPasted = false;   // 本场的 Target（null = 不设目标）
+const API_BASE = window.GRILL_API_BASE ||
+  (location.protocol === 'file:' ? 'http://127.0.0.1:8000/api/v1' : '/api/v1');
+let uploadSerial = 0;
 
 
 /* ═══════ 皮肤：同一个组件层，三套 token ═══════
@@ -183,8 +186,8 @@ function crumbCard(c){
   const on = sessionCrumbs.has(c.id);
   return `<div class="src${on?'':' off'}" data-id="${c.id}" draggable="true">
     <div class="top2"><span class="ic">${SOURCE_ICON[c.type]}</span>
-      <span class="nm">${c.name}</span><span class="n num" data-n="${c.id}">1</span></div>
-    <div class="tx">${c.text}</div>
+      <span class="nm">${esc(c.name)}</span><span class="n num" data-n="${c.id}">1</span></div>
+    <div class="tx">${esc(c.text)}</div>
     <button class="pm2" onclick="toggleCrumb('${c.id}')" title="${on?'移出本场':'加进本场'}">${on?'−':'＋'}</button>
   </div>`;
 }
@@ -713,7 +716,7 @@ function renderReveal(){
     $('.pn.before .pn-t').innerHTML = '<span>BEFORE</span>你的材料里只有这些';
     $('#oldText').innerHTML = e.crumbs.map(id=>{
       const c = CRUMB_BY_ID[id];
-      return `<div style="margin-bottom:8px;font-size:13px"><b style="color:var(--fg-mute);font-size:11px">${c.name}</b><br>${c.text}</div>`;
+      return `<div style="margin-bottom:8px;font-size:13px"><b style="color:var(--fg-mute);font-size:11px">${esc(c.name)}</b><br>${esc(c.text)}</div>`;
     }).join('');
     $('.old-note').innerHTML = `${e.crumbs.length} 条材料，全是<b>事实碎片</b>：有代码、有事故、有一句吵架记录，<br>
       但没有一条说清了<b>结局、取舍和你的角色</b>。<br>你一个字都没写，这一整段是问出来的。`;
@@ -878,9 +881,93 @@ function renderDash(){
         <button class="mini2" onclick="ev('export_md')">导出</button></div></div>`;
   }).join('');
 
+  $('#srcCnt').textContent = CRUMBS.length;
   $('#srcGrid').innerHTML = CRUMBS.map(c=>
-    `<div class="scell"><div class="t1"><span class="ic">${SOURCE_ICON[c.type]}</span>${c.name}</div>
+    `<div class="scell"><div class="t1"><span class="ic">${SOURCE_ICON[c.type]}</span>${esc(c.name)}</div>
       <div class="t2">${SOURCE_LABEL[c.type]}${sessionCrumbs.has(c.id)?' · 本场使用中':''}</div></div>`).join('');
+}
+
+
+/* ═══════ 附件上传 → 后端 crumb ═══════
+   原文件、提取状态和 crumb 是后端的持久状态；本页只把成功返回的 crumb
+   放进当前 session，继续沿用现有的材料选择 / provenance 交互。 */
+function formatBytes(n){
+  if(n < 1024) return `${n} B`;
+  if(n < 1024*1024) return `${(n/1024).toFixed(1)} KB`;
+  return `${(n/1024/1024).toFixed(1)} MB`;
+}
+function uploadRow(file){
+  const id = `upload-${++uploadSerial}`;
+  const row = el('div','upload-row'); row.id = id;
+  row.innerHTML = `<span class="un">${esc(file.name)} · ${formatBytes(file.size)}</span>
+    <span class="us"><span class="bar"><i style="width:0%"></i></span><b>等待中</b></span>`;
+  $('#uploadList').prepend(row);
+  return row;
+}
+function uploadRequest(file, kind, onProgress){
+  return new Promise((resolve,reject)=>{
+    const xhr = new XMLHttpRequest();
+    xhr.open('POST', `${API_BASE}/attachments`);
+    xhr.upload.onprogress = e=>{ if(e.lengthComputable) onProgress(Math.round(e.loaded/e.total*100)); };
+    xhr.onload = ()=>{
+      let body = {};
+      try{ body = JSON.parse(xhr.responseText || '{}'); }catch(_e){}
+      if(xhr.status >= 200 && xhr.status < 300) resolve(body);
+      else reject(new Error(body.detail || `上传失败（HTTP ${xhr.status}）`));
+    };
+    xhr.onerror = ()=>reject(new Error('连不上后端。请用 backend/README.md 的命令启动服务。'));
+    const form = new FormData(); form.append('file',file); form.append('kind',kind);
+    xhr.send(form);
+  });
+}
+function acceptUploadedCrumb(payload){
+  const saved = payload.crumb;
+  if(!CRUMB_BY_ID[saved.id]){
+    const crumb = { id:saved.id, type:saved.kind, name:saved.display_name,
+      text:saved.content, tokenCount:saved.token_count, attachment:saved.attachment };
+    CRUMBS.push(crumb); CRUMB_BY_ID[crumb.id] = crumb;
+  }
+  sessionCrumbs.add(saved.id);
+  renderSetup();
+  if(screenName==='dash') renderDash();
+  if(screenName==='wb'){ mountSheetKeepScroll(); counts(); }
+}
+async function hydrateUploadedCrumbs(){
+  try{
+    const response = await fetch(`${API_BASE}/crumbs`);
+    if(!response.ok) return;
+    const payload = await response.json();
+    (payload.crumbs || []).forEach(crumb=>acceptUploadedCrumb({crumb}));
+  }catch(_error){
+    // 直接双击 HTML 时后端可以不存在；静态原型仍应完整可用。
+  }
+}
+async function uploadAttachments(fileList){
+  const files = [...fileList]; if(!files.length) return;
+  const box = $('#uploadBox'); box.classList.add('busy');
+  const kind = $('#attachmentKind').value;
+  for(const file of files){
+    const row = uploadRow(file), bar = row.querySelector('.bar i'), word = row.querySelector('.us b');
+    try{
+      word.textContent = '上传中';
+      const payload = await uploadRequest(file, kind, n=>{ bar.style.width=`${n}%`; word.textContent=`${n}%`; });
+      acceptUploadedCrumb(payload);
+      row.classList.add('ok'); bar.style.width='100%';
+      word.textContent = payload.duplicate ? '已有，已装载' : '已装载';
+    }catch(error){
+      row.classList.add('err'); bar.parentNode.remove(); word.textContent = error.message;
+    }
+  }
+  box.classList.remove('busy'); $('#attachmentInput').value = '';
+}
+function bindAttachmentUpload(){
+  const box = $('#uploadBox'), input = $('#attachmentInput');
+  box.addEventListener('click', e=>{ if(!e.target.closest('select,label')) input.click(); });
+  box.addEventListener('keydown', e=>{ if((e.key==='Enter'||e.key===' ')&&!e.target.closest('select')){ e.preventDefault(); input.click(); } });
+  input.addEventListener('change', ()=>uploadAttachments(input.files));
+  ['dragenter','dragover'].forEach(name=>box.addEventListener(name,e=>{ e.preventDefault(); box.classList.add('over'); }));
+  ['dragleave','drop'].forEach(name=>box.addEventListener(name,e=>{ e.preventDefault(); box.classList.remove('over'); }));
+  box.addEventListener('drop', e=>uploadAttachments(e.dataTransfer.files));
 }
 
 
@@ -1078,10 +1165,13 @@ function renderSetup(){
 
   $('#crumbgrid').innerHTML = CRUMBS.filter(c=>sessionCrumbs.has(c.id)).map(c=>
     `<div class="cr"><span class="ic">${SOURCE_ICON[c.type]}</span>
-      <span style="min-width:0"><span class="nm">${c.name}</span><span class="tx">${c.text}</span></span>
+      <span style="min-width:0"><span class="nm">${esc(c.name)}</span><span class="tx">${esc(c.text)}</span></span>
       <span class="ck">✓</span></div>`).join('');
+  const uploadedTokens = CRUMBS.filter(c=>sessionCrumbs.has(c.id) && c.tokenCount)
+    .reduce((sum,c)=>sum+c.tokenCount,0);
+  const tokenNote = uploadedTokens ? `样例约 4,200 ＋ 新材料约 ${uploadedTokens.toLocaleString()} tokens` : '样例约 4,200 tokens';
   $('#crumbHint').innerHTML = `本场装了 <b>${sessionCrumbs.size}</b> 条（库里共 ${CRUMBS.length} 条），
-    约 4,200 tokens，<b>全部塞进 context，不做检索</b>。进了工作台还能随时拖进拖出。`;
+    ${tokenNote}。真实后端会按预算检索，不会把材料无限塞进 context。进了工作台还能随时拖进拖出。`;
 }
 
 /* ═══════ 挂载 / 重置 ═══════ */
@@ -1197,7 +1287,7 @@ document.addEventListener('mouseover', e=>{
   let h = '';
   if(t.dataset.ref){
     const c = CRUMB_BY_ID[t.dataset.ref], gone = !sessionCrumbs.has(c.id);
-    h = `<div class="h"><em>${SOURCE_ICON[c.type]} ${c.name}</em> · ${SOURCE_LABEL[c.type]} · ${c.id}</div>${c.text}
+    h = `<div class="h"><em>${SOURCE_ICON[c.type]} ${esc(c.name)}</em> · ${SOURCE_LABEL[c.type]} · ${c.id}</div>${esc(c.text)}
       ${gone?'<div style="margin-top:8px;padding-top:8px;border-top:1px solid var(--pop-line);color:var(--red)">⚠ 这条材料已被移出本场，所以这句话现在没有出处。</div>':''}`;
     aim([t.dataset.ref]); if(screenName==='wb') openPanel('crumbs');
   } else if(t.dataset.turn){
@@ -1317,8 +1407,10 @@ $('#taCount').textContent = `　当前 ${BASELINE.length} 字。`;
 $('#forx').innerHTML = GOALS.map((g,i)=>`<button class="chip${i?'':' on'}" onclick="pickGoal(this,'${g}')">${g}</button>`).join('');
 function pickGoal(b, g){ $$('#forx .chip').forEach(c=>c.classList.remove('on')); b.classList.add('on'); $('#goalTxt').textContent = g; }
 $('#specBody').innerHTML = ARTIFACT.self_intro.map(s=>segHTML(s,true)).join('');
+bindAttachmentUpload();
 
 restart(); renderSetup();
+hydrateUploadedCrumbs();
 
 /* 跳到某个状态：#screen=wb&round=3&panel=crumbs:min&theme=dark&promote=h10&way=pick */
 function seek(n){

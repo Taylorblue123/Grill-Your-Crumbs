@@ -4,6 +4,7 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
 <title>Grill Your Crumbs ｜ 完整流程 Demo</title>
+<link rel="icon" href="data:,">
 <style>
 /* ════════════════════════════════════════════════════════════
    一套 token，两个主题。落地页、dashboard、工作台、成果页
@@ -494,6 +495,30 @@ a{color:inherit}
   display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden}
 .cr .ck{margin-left:auto;flex:none;width:16px;height:16px;border-radius:var(--r2);background:var(--gold);
   color:var(--on-gold);display:grid;place-items:center;font-size:10px;font-weight:800}
+.upload{display:flex;align-items:center;gap:16px;background:var(--card);border:1px dashed var(--line-hard);
+  border-radius:var(--r4);padding:14px 16px;margin-bottom:10px;transition:.15s;cursor:pointer}
+.upload:hover,.upload.over{border-color:var(--blue);background:var(--blue-bg)}
+.upload.busy{cursor:progress;opacity:.82}
+.upload-main{display:flex;align-items:center;gap:11px;min-width:0;flex:1;color:var(--fg-dim)}
+.upload-main>span:last-child{display:grid;gap:2px;font-size:13px;line-height:1.5}
+.upload-main small{font-size:11px;color:var(--fg-mute);font-weight:500}
+.upload-ic{width:30px;height:30px;display:grid;place-items:center;flex:none;border-radius:var(--r3);
+  background:var(--blue-bg);border:1px solid var(--blue-bd);color:var(--blue);font-size:20px;line-height:1}
+.upload-kind{display:grid;gap:3px;font-size:10px;color:var(--fg-mute);cursor:default;white-space:nowrap}
+.upload-kind select{min-width:118px;background:var(--sunk);border:1px solid var(--line-hard);border-radius:var(--r2);
+  padding:5px 24px 5px 8px;color:var(--fg-dim);font-size:11.5px}
+.upload-list{display:grid;gap:6px;margin-bottom:10px}
+.upload-row{display:grid;grid-template-columns:minmax(0,1fr) 110px;gap:10px;align-items:center;
+  border:1px solid var(--line);border-radius:var(--r3);padding:8px 11px;background:var(--sunk);font-size:11.5px}
+.upload-row .un{overflow:hidden;text-overflow:ellipsis;white-space:nowrap;color:var(--fg-dim)}
+.upload-row .us{display:flex;align-items:center;justify-content:flex-end;gap:7px;color:var(--fg-mute)}
+.upload-row .bar{height:3px;width:58px;background:var(--sunk2);border-radius:var(--rp);overflow:hidden}
+.upload-row .bar i{display:block;height:100%;background:var(--blue);transition:width .15s}
+.upload-row.ok{border-color:var(--blue-bd);background:var(--blue-bg)}
+.upload-row.ok .us{color:var(--blue-ink)}
+.upload-row.err{border-color:var(--red-bd);background:var(--red-bg)}
+.upload-row.err .us{color:var(--red-ink)}
+.upload-privacy{font-size:10.8px;color:var(--fg-mute);line-height:1.55;margin:0 2px 11px}
 .modes{display:grid;grid-template-columns:1fr 1fr;gap:10px}
 .mode{text-align:left;background:var(--card);border:1px solid var(--line-hard);border-radius:var(--r4);padding:14px 16px}
 .mode h4{font-size:14.5px;font-weight:640;display:flex;align-items:center;gap:8px}
@@ -1088,6 +1113,7 @@ body.dragging .dz{display:flex}
   .goal,.topnav,.pbLabel{display:none}
   .panes{gap:14px}
   .matrix{grid-template-columns:repeat(3,1fr)}
+  .upload{align-items:flex-start;flex-direction:column}.upload-kind{width:100%}.upload-kind select{width:100%}
 }
 @media(prefers-reduced-motion:reduce){
   *{animation-duration:.01ms!important;transition-duration:.01ms!important}

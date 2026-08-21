@@ -25,8 +25,8 @@ const CRUMBS = [
   { id:'c12', type:'diary',  name:'diary/2025-09.md', text:'2025-09-20 项目交接给学弟了，有点舍不得。', off:true }
 ];
 
-const SOURCE_LABEL = { resume:'简历', repo:'代码仓库', notes:'笔记', diary:'日记', social:'社交动态', linkedin:'LinkedIn' };
-const SOURCE_ICON  = { resume:'📄', repo:'⌥', notes:'📝', diary:'🔒', social:'💬', linkedin:'in' };
+const SOURCE_LABEL = { resume:'简历', repo:'代码仓库', notes:'笔记', diary:'日记', social:'社交动态', linkedin:'LinkedIn', manual:'其他材料' };
+const SOURCE_ICON  = { resume:'📄', repo:'⌥', notes:'📝', diary:'🔒', social:'💬', linkedin:'in', manual:'＋' };
 
 /* ── 投喂方式 B：不写字，从已有材料里挑一段经历 ──
    AI 先把 crumbs 聚成几段「可讲的经历」，每段都说清它是从哪几条材料聚出来的、
