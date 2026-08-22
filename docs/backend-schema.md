@@ -2,13 +2,17 @@
 
 核心只有一句话：**`fact` 是这个产品唯一的资产表，其他表都围着它转。** Thread 是过程，Artifact 是快照，只有 fact 会跨 thread、跨简历复用。
 
+附件上传的首个可运行切片、API 契约和生产边界见 `backend-api.md`。下面的 `crumb`
+仍然保存可供提问器读取的文本；原文件元数据与存储位置由独立的 `attachment` 表保存。
+
 ---
 
 ## 表关系
 
 ```
 user
- ├── crumb                 用户投喂的原始材料（简历/repo/笔记/日记/社交）
+ ├── crumb                 从原文件提取、可供提问器读取的材料文本
+ │    └── attachment       私有原文件的元数据、存储 key 与提取状态
  ├── thread                一场 grill（有目标、有轮次、有状态）
  │    └── turn             一轮问答（question / why_asked / guess / answer）
  │         └── fact        ★ 从这一轮回答里拆出的独立新事实
@@ -44,6 +48,24 @@ create table crumb (
   synced_at     timestamptz not null default now(),
   unique (user_id, content_hash)
 );
+
+-- 原文件与可供模型读取的 crumb 分开：可重跑提取、可独立清除，也不把存储地址暴露给前端
+create type extraction_state as enum ('pending','ready','unsupported','failed');
+create table attachment (
+  id                uuid primary key,
+  user_id           uuid not null references "user"(id) on delete cascade,
+  crumb_id          uuid unique references crumb(id) on delete cascade,
+  original_name     text not null,
+  media_type        text not null,
+  byte_size         bigint not null check (byte_size >= 0),
+  storage_key       text not null unique,       -- 私有对象存储 key，不是公开 URL
+  sha256            text not null,
+  extraction_status extraction_state not null default 'pending',
+  extraction_error  text,
+  created_at        timestamptz not null default now(),
+  unique (user_id, sha256)
+);
+create index on attachment (user_id, created_at desc);
 
 -- ── 一场拷问 ───────────────────────────────────────────
 create table thread (

@@ -6,10 +6,10 @@
    3) segment.hs     稿子里每个金色片段硬绑到它依赖的那几条新事实
    ============================================================ */
 
-const BASELINE =
+export const BASELINE =
   '大三的时候在一个实验室做了个推荐系统的项目，主要负责后端和一部分模型。做了大概半年，最后上线了，效果还可以。中间遇到了一些困难，也学到了很多东西。';
 
-const CRUMBS = [
+export const CRUMBS = [
   { id:'c1', type:'resume',   name:'Chen-Resume-2026.pdf', text:'XX大学 计算机科学与技术 2022–2026 · GPA 3.8/4.0' },
   { id:'c2', type:'resume',   name:'Chen-Resume-2026.pdf', text:'校园二手交易平台 · 推荐系统 · 后端开发 · 2025.03–2025.09' },
   { id:'c3', type:'repo',     name:'github.com/chen/campus-rec', text:'Python · FastAPI · Faiss · Redis · LightGBM ｜ 128 commits，主力提交者' },
@@ -25,13 +25,13 @@ const CRUMBS = [
   { id:'c12', type:'diary',  name:'diary/2025-09.md', text:'2025-09-20 项目交接给学弟了，有点舍不得。', off:true }
 ];
 
-const SOURCE_LABEL = { resume:'简历', repo:'代码仓库', notes:'笔记', diary:'日记', social:'社交动态', linkedin:'LinkedIn', manual:'其他材料' };
-const SOURCE_ICON  = { resume:'📄', repo:'⌥', notes:'📝', diary:'🔒', social:'💬', linkedin:'in', manual:'＋' };
+export const SOURCE_LABEL = { resume:'简历', repo:'代码仓库', notes:'笔记', diary:'日记', social:'社交动态', linkedin:'LinkedIn', manual:'其他材料' };
+export const SOURCE_ICON  = { resume:'📄', repo:'⌥', notes:'📝', diary:'🔒', social:'💬', linkedin:'in', manual:'＋' };
 
 /* ── 投喂方式 B：不写字，从已有材料里挑一段经历 ──
    AI 先把 crumbs 聚成几段「可讲的经历」，每段都说清它是从哪几条材料聚出来的、
    以及为什么值得挖。用户挑一个就能开始——一个字都不用写。 */
-const EXPERIENCES = [
+export const EXPERIENCES = [
   { id:'e1', title:'校园二手交易平台 · 推荐系统', span:'2025.03 – 2025.09',
     crumbs:['c2','c3','c4','c5','c6','c7'],
     why:'材料最密的一段，但<b>缺口也最大</b>：6 条材料里有代码、有事故、有吵架记录，却<b>没有一条写了结局</b>。',
@@ -47,12 +47,12 @@ const EXPERIENCES = [
 ];
 
 /* 六个维度：只用来分组，不用来算完成度 */
-const DIMS = ['动机','角色边界','关键决策','量化结果','真实困难','判断与协作'];
+export const DIMS = ['动机','角色边界','关键决策','量化结果','真实困难','判断与协作'];
 
 /* ── 新事实账本：每一条都是独立、可数、可撤回的条目 ──
    dest='候补' 的条目不会自动进简历，但可以被用户手动拖进去（promote 是拖进去之后写成的那句话）。
    这个字段就是后端 fact 表里的 `destination` + `promoted_text`。 */
-const HARVEST = {
+export const HARVEST = {
   h1:{ dim:'量化结果',  turn:'t1', text:'人均停留时长 +40%',                                   tags:['数字','业务指标'],  dest:'简历 ＋ 自我介绍' },
   h2:{ dim:'量化结果',  turn:'t1', text:'日均 GMV 增量约 ¥12,000',                             tags:['数字','业务指标'],  dest:'简历 ＋ 自我介绍' },
   h3:{ dim:'量化结果',  turn:'t2', text:'P99 800ms → 120ms（6.7×），冷启动 40s → 3s',          tags:['数字','性能'],      dest:'简历' },
@@ -66,11 +66,11 @@ const HARVEST = {
   h8:{ dim:'角色边界',  turn:'t4', text:'后 3 个月带 2 名初级开发，负责任务拆解与 code review（100+ PR）', tags:['带人','数字'], dest:'简历' },
   h9:{ dim:'动机',      turn:'t6', text:'自己挂闲置两周无人问津 → 翻点击日志发现 70% 流量集中在首页前 20 个商品 → 主动写提案', tags:['起因','主动性'], dest:'简历 ＋ 自我介绍' }
 };
-const isCand = id => (HARVEST[id].dest || '').startsWith('候补');
+export const isCand = id => (HARVEST[id].dest || '').startsWith('候补');
 
 /* ── grill 回合 ──
    grip：把握度不再是一个凭空的百分比，而是「材料里有几条提到过」——可数、可点。 */
-const TURNS = [
+export const TURNS = [
   { id:'t1', round:1, dim:'量化结果', status:'answered',
     src:'jd', jdReq:['r7'], jdLine:'JD 第 7 条要「能用业务指标衡量自己的工作」。你的材料里有模型指标，<b>0 条</b>有业务指标。',
     grip:{ lv:'低', ev:'8 条材料里 <b>1 条</b>提到过效果（X 动态给了 CTR），<b>0 条</b>提到业务侧发生了什么', refs:['c7'] },
@@ -124,7 +124,7 @@ const TURNS = [
 ];
 
 /* ── 成稿。金色片段用 hs 硬绑到它依赖的新事实条目 ── */
-const ARTIFACT = {
+export const ARTIFACT = {
   /* bullet_req[i] = 第 i 条 bullet 回答了 JD 的哪几条要求 */
   bullet_req: [['r5','r7'], ['r2','r3','r4'], ['r6','r11','r9'], ['r8'], ['r10'], []],
   promoted_req: { h5:['r4'], h10:['r9'] },
@@ -169,7 +169,7 @@ const ARTIFACT = {
 };
 
 /* 产出物类型（格式）—— 和「为谁做」是正交的两件事 */
-const GOALS = ['简历 bullet','LinkedIn About','60 秒自我介绍','个人网站项目页'];
+export const GOALS = ['简历 bullet','LinkedIn About','60 秒自我介绍','个人网站项目页'];
 
 /* ── Target：一个 JD / 一个机会 ──
    requirement 的四种状态由 reqState() 算出来：
@@ -178,7 +178,7 @@ const GOALS = ['简历 bullet','LinkedIn About','60 秒自我介绍','个人网�
      none    还没有，但问得出来（fills 指明问出哪几条就能补上）
      gap     你确实没有 —— 永远补不上，绝不为它生成文案
    最后那一种是这一版最重要的东西：JD 是检查表，不是模板。 */
-const TARGETS = [
+export const TARGETS = [
   { id:'tg1', kind:'实习', title:'后端开发实习生', org:'某大厂 · 基础架构', when:'3 天前收藏', primary:true,
     raw:'岗位职责：参与后端服务的设计与开发，负责推荐/搜索链路的性能优化与稳定性建设。\n任职要求：见下。',
     reqs:[
@@ -217,10 +217,10 @@ const TARGETS = [
   { id:'tg3', kind:'合伙人', title:'技术合伙人 / 早期团队', org:'—', entryOnly:true,
     raw:'', reqs:[] }
 ];
-const REQ_KIND = { hard:'硬性', pref:'优先', implicit:'隐含' };
+export const REQ_KIND = { hard:'硬性', pref:'优先', implicit:'隐含' };
 
 /* 同频的人 —— placeholder。匹配只发生在标签层，不碰 crumbs 原文。 */
-const PEERS = [
+export const PEERS = [
   { id:'p1', handle:'@lin_infra', line:'后端 / 存储 · 在做一个校内拼车的匹配服务',
     overlap:['成本意识','根因','事故'],
     theirs:'为了省钱没上 K8s，自己写了个 systemd + 健康检查的土方案，跑了半年没挂。',
@@ -236,7 +236,7 @@ const PEERS = [
 ];
 
 /* 可见性三层 —— placeholder，默认最严 */
-const VISIBILITY = [
+export const VISIBILITY = [
   { key:'private',   name:'材料原文', desc:'日记、笔记、私有 repo 的原文', state:'永不参与匹配', locked:true },
   { key:'matchable', name:'标签签名', desc:'只有 #成本意识 这类标签，不含事实原文', state:'参与匹配', on:true },
   { key:'public',    name:'事实原文', desc:'某一条事实的具体内容', state:'逐条手动放行 · 现在 0 条', on:false }
@@ -245,7 +245,7 @@ const VISIBILITY = [
 /* ── Dashboard 的历史数据 ──
    以「经历」为单位组织：一段经历下面挂着它的事实、轮次、产出物。
    thread（第几场拷问）退成经历的一个属性，不再是顶层分类。 */
-const PAST_EXP = [
+export const PAST_EXP = [
   { id:'x2', title:'开源项目 campus-rec 的 README 重写', span:'2025.10',
     crumbs:2, rounds:'4 / 4', when:'3 天前', state:'done',
     dims:{ '动机':2, '角色边界':1, '判断与协作':3, '量化结果':2 },
@@ -265,11 +265,18 @@ const PAST_EXP = [
       { dim:'真实困难', text:'压测环境和线上流量分布不一致，前两次调参全废', tags:['事故','根因'],   dest:'候补', from:'第 2 轮' }
     ]}
 ];
-const PAST_ARTIFACTS = [
+export const PAST_ARTIFACTS = [
   { id:'a_02', title:'个人网站 · campus-rec 项目页', kind:'项目页', exps:['开源项目 campus-rec 的 README 重写'], when:'3 天前', prov:[9,7,1] },
   { id:'a_03', title:'LinkedIn About（英文）',       kind:'LinkedIn', exps:['开源项目 campus-rec 的 README 重写'], when:'3 天前', prov:[5,4,2] },
   { id:'a_04', title:'面试自我介绍 · 60 秒（草稿）', kind:'自我介绍', exps:['支付网关限流中间件（暑期实习）'],     when:'上周',  prov:[4,2,3] }
 ];
 
-const CRUMB_BY_ID = Object.fromEntries(CRUMBS.map(c=>[c.id,c]));
-const TURN_BY_ID  = Object.fromEntries(TURNS.map(t=>[t.id,t]));
+/* 演示材料的静态索引。运行时上传的材料不进这里——它们活在 store 的 crumbs 里，
+   用 selectors.crumbById(state) 查。TURNS 是纯静态脚本，可以直接索引。 */
+export const DEMO_CRUMB_BY_ID = Object.fromEntries(CRUMBS.map(c=>[c.id,c]));
+export const TURN_BY_ID  = Object.fromEntries(TURNS.map(t=>[t.id,t]));
+
+/* 后端 VALID_KINDS 和前端图标表不完全重合，兜底到一个一定有图标的类型。 */
+export function normalizeKind(kind){
+  return SOURCE_ICON[kind] ? kind : 'manual';
+}

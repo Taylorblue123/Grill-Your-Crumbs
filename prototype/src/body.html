@@ -150,7 +150,7 @@
       <div class="strip" id="artStrip"></div>
 
       <div class="shelfhead">
-        <h2>材料</h2><span class="c num">12</span>
+        <h2>材料</h2><span class="c num" id="srcCnt">12</span>
         <p>原料层。同一条材料可以喂给多段经历。</p>
       </div>
       <div class="srcgrid" id="srcGrid"></div>
@@ -286,6 +286,28 @@
 
       <div class="blk">
         <div class="blab">本场装载的 Crumbs <i>进了工作台还能随时增减</i></div>
+        <div class="upload" id="uploadBox" tabindex="0" role="button"
+             aria-label="上传简历、笔记或其他材料">
+          <input id="attachmentInput" type="file" multiple
+                 accept=".pdf,.docx,.txt,.md,.markdown,.csv,.json" class="sr">
+          <div class="upload-main">
+            <span class="upload-ic">＋</span>
+            <span><b>拖文件到这里，或点选上传</b><small>PDF / DOCX / TXT / Markdown / CSV / JSON · 单个不超过 10 MB</small></span>
+          </div>
+          <label class="upload-kind" onclick="event.stopPropagation()">
+            这是什么材料
+            <select id="attachmentKind" aria-label="材料类型">
+              <option value="auto">自动判断</option>
+              <option value="resume">简历</option>
+              <option value="notes">笔记</option>
+              <option value="repo">代码仓库材料</option>
+              <option value="diary">日记</option>
+              <option value="manual">其他</option>
+            </select>
+          </label>
+        </div>
+        <div class="upload-list" id="uploadList" aria-live="polite"></div>
+        <p class="upload-privacy">🔒 原文件和提取文本只作为你的私有材料；真实上线前还需接入加密、保留策略和恶意文件扫描。</p>
         <div class="crumbgrid" id="crumbgrid"></div>
         <div class="hint" id="crumbHint"></div>
       </div>

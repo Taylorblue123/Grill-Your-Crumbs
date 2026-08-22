@@ -1,11 +1,3 @@
-<!DOCTYPE html>
-<html lang="zh-CN" data-theme="light" data-skin="paper">
-<head>
-<meta charset="utf-8">
-<meta name="viewport" content="width=device-width,initial-scale=1">
-<title>Grill Your Crumbs ｜ 完整流程 Demo</title>
-<link rel="icon" href="data:,">
-<style>
 /* ════════════════════════════════════════════════════════════
    一套 token，两个主题。落地页、dashboard、工作台、成果页
    全部只用语义变量 —— 任何一屏都不再自带配色。
@@ -1118,5 +1110,3 @@ body.dragging .dz{display:flex}
 @media(prefers-reduced-motion:reduce){
   *{animation-duration:.01ms!important;transition-duration:.01ms!important}
 }
-</style>
-</head>
