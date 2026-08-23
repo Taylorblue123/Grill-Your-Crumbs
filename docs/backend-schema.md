@@ -124,12 +124,12 @@ create index on fact (user_id, destination) where retracted_at is null and desti
 
 四件事都在这张表里：
 
-| 前端行为 | 落在哪 |
-|---|---|
-| 账本按维度分组、显示条数 | `group by dimension where retracted_at is null` |
-| 「撤回这一条」 | `retracted_at = now()`（不 delete —— 用户撤回了什么，本身是评测信号） |
-| **把候补拖进简历** | `destination: candidate → resume`，`promoted_by='user'`，写入 `promoted_text` |
-| 事实库跨简历复用 | 按 `user_id` 查，跟 `thread_id` 无关 |
+| 前端行为                 | 落在哪                                                                        |
+| ------------------------ | ----------------------------------------------------------------------------- |
+| 账本按维度分组、显示条数 | `group by dimension where retracted_at is null`                               |
+| 「撤回这一条」           | `retracted_at = now()`（不 delete —— 用户撤回了什么，本身是评测信号）         |
+| **把候补拖进简历**       | `destination: candidate → resume`，`promoted_by='user'`，写入 `promoted_text` |
+| 事实库跨简历复用         | 按 `user_id` 查，跟 `thread_id` 无关                                          |
 
 `promoted_by` 分 `model` / `user` 两种值，是为了以后能回答一个问题：**模型判定的去向，用户改了多少次？** 改得越多说明去向判断越不准，这是一个不用额外标注就能拿到的评测指标。
 
@@ -249,17 +249,17 @@ create table event (
 create index on event (type, at desc);
 ```
 
-| `type` | 触发点 | 它是什么样本 |
-|---|---|---|
-| `question_flagged_useless` | 【这问题没意义】 | Good-Question-Rate **负样本** |
-| `question_skipped` | 【跳过这题】 | 弱负样本 |
-| `segment_deleted` | 【删掉这条】红色片段 | **幻觉样本** |
-| `segment_confirmed` | 【我确认，属实】 | 正样本 |
-| `fact_retracted` | 账本里【撤回】 | 抽取质量负样本 |
-| `fact_promoted` | **候补拖进简历** | 去向判断负样本（模型判 candidate，用户不同意） |
-| `fact_demoted` | 从简历移走 | 去向判断负样本（反向） |
-| `artifact_exported` / `copied` / `shared` | 成果页三个按钮 | **H3 成功样本，唯一的北极星** |
-| `tag_miss` | 模型想打表里没有的标签 | 扩词表的输入 |
+| `type`                                    | 触发点                 | 它是什么样本                                   |
+| ----------------------------------------- | ---------------------- | ---------------------------------------------- |
+| `question_flagged_useless`                | 【这问题没意义】       | Good-Question-Rate **负样本**                  |
+| `question_skipped`                        | 【跳过这题】           | 弱负样本                                       |
+| `segment_deleted`                         | 【删掉这条】红色片段   | **幻觉样本**                                   |
+| `segment_confirmed`                       | 【我确认，属实】       | 正样本                                         |
+| `fact_retracted`                          | 账本里【撤回】         | 抽取质量负样本                                 |
+| `fact_promoted`                           | **候补拖进简历**       | 去向判断负样本（模型判 candidate，用户不同意） |
+| `fact_demoted`                            | 从简历移走             | 去向判断负样本（反向）                         |
+| `artifact_exported` / `copied` / `shared` | 成果页三个按钮         | **H3 成功样本，唯一的北极星**                  |
+| `tag_miss`                                | 模型想打表里没有的标签 | 扩词表的输入                                   |
 
 用户不觉得自己在标注，评测集自己长出来。
 
