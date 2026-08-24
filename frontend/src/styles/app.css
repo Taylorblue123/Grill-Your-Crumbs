@@ -417,3 +417,133 @@ textarea.cp-in::placeholder { color: var(--fg-mute); }
 @media (prefers-reduced-motion: reduce) {
   .live-fact.born { animation: none; }
 }
+
+/* --- 成稿对比（RewriteView）---------------------------------------------- */
+
+/* 版式沿用成果页的 .panes / .pn / .sheet / .sg，这里只补真链路多出来的几块：
+   标题条、版本条、拒绝说明、改稿框。金色染色一行不写——.sg.grill 已经是
+   设计系统里三色出处的既有语言，真链路和剧本 demo 用同一套颜色语义。 */
+
+.live-rewrite { margin-top: 4px; }
+
+.live-rewrite-h {
+  border: 1px solid var(--gold-bd);
+  background: var(--gold-bg);
+  border-radius: var(--r4);
+  padding: 18px 20px;
+  margin-bottom: 22px;
+}
+.live-rewrite-h h3 { margin: 8px 0 6px; font-size: 19px; color: var(--gold-ink); }
+.live-rewrite-h p { margin: 0; font-size: 13px; line-height: 1.8; color: var(--fg-dim); }
+
+/* 真链路的对比视图比成果页窄一列（没有六维板和 JD 对齐板陪着），
+   所以让两栏更接近等宽——右边成稿仍然是主角。 */
+.live-rewrite .panes { grid-template-columns: .82fr 1fr; max-width: none; }
+.live-rewrite .old { white-space: pre-wrap; }
+.live-rewrite .sheet .bul:last-child { margin-bottom: 0; }
+.live-rewrite .exports small { font-size: 10.5px; color: var(--fg-mute); }
+
+/* 回看旧版时的提示。红色留给「出错了」，回看不是出错。 */
+.live-stale {
+  font-style: normal;
+  font-weight: 700;
+  color: var(--blue-ink);
+  background: var(--blue-bg);
+  border-radius: var(--rp);
+  padding: 1px 8px;
+  margin-left: 7px;
+  letter-spacing: 0;
+}
+
+/* 复制不了时才亮出来的兜底文本框：用户自己按 Ctrl+C。 */
+.live-copy-fallback {
+  width: 100%;
+  margin-top: 10px;
+  min-height: 120px;
+  font: inherit;
+  font-size: 12.5px;
+  line-height: 1.7;
+  border: 1px solid var(--line-hard);
+  border-radius: var(--r2);
+  padding: 10px 12px;
+  background: var(--sunk);
+  color: var(--fg-dim);
+}
+
+/* ── 版本条 ── */
+.live-versions {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  flex-wrap: wrap;
+  margin-top: 18px;
+}
+.live-ver {
+  font: inherit;
+  font-size: 11.5px;
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+  cursor: pointer;
+  border: 1px solid var(--line-hard);
+  background: var(--card);
+  color: var(--fg-dim);
+  border-radius: var(--rp);
+  padding: 3px 12px;
+}
+.live-ver:hover:not([disabled]) { border-color: var(--fg-mute); color: var(--fg); }
+.live-ver.on {
+  border-color: var(--gold-bd);
+  background: var(--gold-bg);
+  color: var(--gold-ink);
+}
+.live-ver.back { font-weight: 640; color: var(--blue-ink); border-color: var(--blue-bd); }
+.live-ver[disabled] { opacity: .45; cursor: not-allowed; }
+
+/* ── 拒绝编造 ──
+   产品唯一红线唯一一次直接对用户说话的地方（ADR-0002）。用红色是因为它确实
+   是一次拒绝，但措辞和版式要像一句解释，不像一条报错。 */
+.live-refusal {
+  margin-top: 18px;
+  border: 1px solid var(--red-bd);
+  background: var(--red-bg);
+  border-radius: var(--r3);
+  padding: 14px 16px;
+}
+.live-refusal .kick { color: var(--red-ink); }
+.live-refusal p {
+  margin: 6px 0 0;
+  font-size: 13px;
+  line-height: 1.8;
+  color: var(--fg-dim);
+}
+
+/* ── 改稿框 ── */
+.live-revise-note {
+  margin: 6px 0 12px;
+  font-size: 11.5px;
+  line-height: 1.7;
+  color: var(--fg-mute);
+}
+.live-chips { display: flex; gap: 7px; flex-wrap: wrap; margin-bottom: 10px; }
+.live-chips .tg[disabled] { opacity: .45; cursor: not-allowed; }
+.live-input {
+  width: 100%;
+  resize: vertical;
+  font: inherit;
+  font-size: 13.3px;
+  line-height: 1.7;
+  color: var(--fg);
+  background: var(--card);
+  border: 1px solid var(--line-hard);
+  border-radius: var(--r3);
+  padding: 12px 14px;
+}
+.live-input:focus { outline: none; border-color: var(--blue); }
+.live-input::placeholder { color: var(--fg-mute); }
+.live-input[disabled] { opacity: .6; }
+
+/* 窄屏：左右对比叠成上下。原简历在上——先看见「我原来写的」，
+   再看见「问完之后变成什么样」，对比的顺序不能倒。 */
+@media (max-width: 900px) {
+  .live-rewrite .panes { grid-template-columns: 1fr; }
+}

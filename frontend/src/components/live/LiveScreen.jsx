@@ -1,8 +1,10 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import TopBar from '../shell/TopBar.jsx';
 import UploadBox from '../setup/UploadBox.jsx';
+import RepoBox from '../setup/RepoBox.jsx';
 import QuestionCard from './QuestionCard.jsx';
 import FactLedger from './FactLedger.jsx';
+import RewriteView from './RewriteView.jsx';
 import {
   AnswerConflictError,
   SessionGoneError,
@@ -22,7 +24,7 @@ import { useDispatch, useStore } from '../../store/StoreContext.jsx';
    「自包含」的边界要说清楚：
      - **拷问会话状态**（JD、进场的料、当前题、账本、加载/错误）全在本组件
        局部 state 里，不进全局 store——剧本 demo 的 reducer 一行不动。
-     - **材料列表**读全局 store，上传也照常走 UploadBox。料是全应用共享的
+     - **材料列表**读全局 store，上传走 UploadBox、连仓走 RepoBox。料是全应用共享的
        资产（上传一次，剧本和真链路都看得见），不该在这里再存一份。
      - 会话进行中**不写 hash 参数**：深链是给剧本演示用的复现工具，
        真会话是有服务端状态的一次性对象，塞进 URL 只会造出复现不了的链接。
@@ -322,19 +324,13 @@ export default function LiveScreen() {
               )}
 
               {phase === 'closed' && (
-                <div className="live-closed">
-                  <span className="kick">这一场问完了</span>
-                  <h3>
-                    {`${answered} 问，挖出 ${facts.length} 条事实。`}
-                  </h3>
-                  <p>
-                    {session.closed_by === 'stopped'
-                      ? '你叫停了——账本里已有的东西一条都不会丢。'
-                      : '想挖的点都问到底了。'}
-                    <b> 接下来是拿这些事实改写简历</b>
-                    ，那是下一片的事。
-                  </p>
-                </div>
+                <RewriteView
+                  sessionId={session.session_id}
+                  crumbs={crumbs}
+                  closedBy={session.closed_by}
+                  answered={answered}
+                  factCount={facts.length}
+                />
               )}
 
               <FactLedger facts={facts} freshIds={freshIds} />
@@ -383,6 +379,7 @@ export default function LiveScreen() {
                 </p>
 
                 <UploadBox />
+                <RepoBox />
 
                 {crumbs.length === 0 ? (
                   <div className="live-empty">

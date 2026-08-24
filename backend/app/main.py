@@ -20,6 +20,7 @@ from .github import GitHub, GitHubError, HttpGitHub
 from .grill import GrillError, open_session, pick_baseline, question_view
 from .llm import Llm, LlmError, OpenAiLlm
 from .repos import RepoUrlError, build_repo_summary, parse_repo_url, repo_has_substance
+from .rewrite import cache_key, run_rewrite
 from .schemas import (
     CrumbListResponse,
     CrumbView,
@@ -33,6 +34,10 @@ from .schemas import (
     RepoConnectRequest,
     RepoConnectResponse,
     RepoResult,
+    RewriteHistoryResponse,
+    RewriteRequest,
+    RewriteResponse,
+    RewriteVersionView,
     UploadResponse,
 )
 from .sessions import GrillSessionStore
@@ -442,6 +447,8 @@ def create_app(
             facts=[],
             history=[],
             done=False,
+            # 成稿版本历史，改写那一片追加。空 = 还没出过初稿。
+            rewrites=[],
             created_at=utc_now(),
         )
 
@@ -557,6 +564,144 @@ def create_app(
             question=turn["question"],
             done=turn["done"],
         )
+
+    def rewrite_view(version: Dict[str, Any], original_text: str) -> RewriteResponse:
+        return RewriteResponse(
+            version=version["version"],
+            original_text=original_text,
+            segments=version["segments"],
+            stats=version["stats"],
+            instruction=version.get("instruction"),
+            refusal=version.get("refusal"),
+        )
+
+    def baseline_text_of(session: Dict[str, Any], user_id: str) -> str:
+        """取底稿简历的正文。
+
+        会话只记 `baseline_crumb_id`，正文每次现从库里读——把整份简历也塞进会话
+        状态会让内存仓和 dev 镜像里多一份随时可能和料库对不上的副本。
+        料被删掉是可能的（用户在别处删了它），那时底稿为空串：改写照样能跑，
+        只是左边没有可比的原文，成稿全部落在账本上。
+        """
+        rows = database.list_crumbs_by_ids(user_id, [session["baseline_crumb_id"]])
+        return rows[0]["content"] if rows else ""
+
+    @app.post(
+        "/api/v1/grill/sessions/{session_id}/rewrite",
+        response_model=RewriteResponse,
+    )
+    def rewrite_session(
+        session_id: str,
+        request: RewriteRequest,
+        user_id: str = Depends(current_user_id),
+    ) -> RewriteResponse:
+        """出初稿，或按一条自然语言指令改稿。
+
+        `instruction` 为空 = 初稿（v1）；带指令 = 在最新一版上改，版本 +1。
+
+        三条不变量在这里守住：
+
+        **缓存按参数**（issue #27 验收）。同一版本 + 同一指令重复调用返回缓存，不烧第二次
+        token——双击「改稿」、网络重发都走这条。缓存查在调 LLM 之前。
+
+        **失败原子性**（同 `run_turn` 的纪律）。`run_rewrite` 是纯函数不碰会话仓，
+        版本在它成功返回之后一次性追加。LLM 失败时历史一个字没变，同一指令可安全重发。
+
+        **拒绝是 200 不是错误**。指令要求编造未挖到的经历时，成稿维持上一版原样，
+        `refusal` 带上理由。走错误码会诱使前端把它当故障重试，而重试一条编造指令
+        没有意义——用户需要读到的是「为什么不给你写」。
+        """
+        session = load_session(session_id, user_id)
+        versions: List[Dict[str, Any]] = session.get("rewrites") or []
+        instruction = (request.instruction or "").strip() or None
+        base_version = versions[-1]["version"] if versions else 0
+
+        if instruction is None and versions:
+            # 无指令 = 「给我看初稿」。已经出过稿就把最新一版交回去，不重跑一次
+            # LLM——前端每次进对比视图都会调这个端点。
+            return rewrite_view(versions[-1], baseline_text_of(session, user_id))
+
+        # 缓存查的是**最新那一版**是不是正好由这条指令产出的。双击「改稿」、网络
+        # 重发都长这样：第一次已经把 v2 写好了，第二次带着同一条指令再来。
+        #
+        # 不扫全部历史：同一条指令在 v1 上和在 v2 上是两次不同的改写（「口语一点」
+        # 改过一轮之后再来一次，用户要的是在当前这版上继续，不是回到那个旧版）。
+        # `cache_key` 带上底版本号，正是为了让这两次不互相顶掉。
+        #
+        # `base_version - 1` 不是笔误：存进去的键记的是那一版**当初的底版本**，
+        # 而它自己就是现在的 `base_version`，所以它的底版本比现在小一。
+        if versions and tuple(versions[-1].get("cache_key") or ()) == cache_key(
+            base_version - 1, instruction
+        ):
+            return rewrite_view(versions[-1], baseline_text_of(session, user_id))
+
+        baseline_text = baseline_text_of(session, user_id)
+        try:
+            produced = run_rewrite(
+                llm=app_llm,
+                session=session,
+                baseline_text=baseline_text,
+                crumbs=database.list_crumbs_by_ids(user_id, session.get("crumb_ids") or []),
+                instruction=instruction,
+                previous=versions[-1] if versions else None,
+            )
+        except (LlmError, GrillError) as error:
+            raise HTTPException(status_code=502, detail=str(error)) from error
+
+        version = {
+            "version": base_version + 1,
+            "instruction": instruction,
+            "segments": produced["segments"],
+            "stats": produced["stats"],
+            "refusal": produced["refusal"],
+            # 记下这一版是「在哪一版上执行哪条指令」得来的——下一次同样的请求
+            # 靠它认出自己是一次重发。
+            "cache_key": list(cache_key(base_version, instruction)),
+            "created_at": utc_now(),
+        }
+        sessions.update(session_id, rewrites=[*versions, version])
+
+        return rewrite_view(version, baseline_text)
+
+    @app.get(
+        "/api/v1/grill/sessions/{session_id}/rewrite/versions",
+        response_model=RewriteHistoryResponse,
+    )
+    def list_rewrite_versions(
+        session_id: str, user_id: str = Depends(current_user_id)
+    ) -> RewriteHistoryResponse:
+        """版本步进器的数据源：有哪些版本、各自是哪条指令改出来的。"""
+        session = load_session(session_id, user_id)
+        return RewriteHistoryResponse(
+            versions=[
+                RewriteVersionView(
+                    version=version["version"], instruction=version.get("instruction")
+                )
+                for version in session.get("rewrites") or []
+            ]
+        )
+
+    @app.get(
+        "/api/v1/grill/sessions/{session_id}/rewrite/{version}",
+        response_model=RewriteResponse,
+    )
+    def get_rewrite_version(
+        session_id: str, version: int, user_id: str = Depends(current_user_id)
+    ) -> RewriteResponse:
+        """回看某一版。「比较并回到更好的一版」的读路径。
+
+        回看是纯读：不把旧版复制成新版。用户在 v3 上回看 v1 之后再改稿，改的仍然是
+        v3——「回到 v1 再改」是另一个产品动作，本切片不做（issue #22 明确把多版本
+        并排对比划在范围外）。
+        """
+        session = load_session(session_id, user_id)
+        found = next(
+            (item for item in session.get("rewrites") or [] if item["version"] == version),
+            None,
+        )
+        if found is None:
+            raise HTTPException(status_code=404, detail="没有这一版成稿。")
+        return rewrite_view(found, baseline_text_of(session, user_id))
 
     # React 前端的静态资源。只在构建过之后挂载 —— 跑后端测试时 dist/ 不存在是正常的。
     frontend_assets = app_settings.frontend_dist / "assets"
