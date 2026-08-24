@@ -16,6 +16,7 @@ and shows where every generated segment came from.
 | `prototype/build.sh` | 把上面四个文件拼成单文件；改完源码跑一下就行 |
 | `prototype/README.md` | **设计说明**：五屏动线、四面板系统、每个设计决策和它的理由、已知未做的部分 |
 | `backend/` | **可运行的首个后端切片**：附件上传、文本提取、去重、Crumb 持久化和 API 测试 |
+| `.env.example` | 后端环境变量样板：LLM 的 key / 模型名 / base_url，以及存储路径 |
 | `docs/backend-schema.md` | 后端数据表方案（Postgres DDL）＋ 标签词表 ＋ 评测事件表 |
 | `docs/backend-api.md` | 附件 API 契约、前后端边界、生产化前必须补的安全能力 |
 | `docs/visual-directions.md` | **三套视觉方案**：调研依据、四轴对比、各自赌什么/代价、实现方式 |
@@ -29,6 +30,7 @@ and shows where every generated segment came from.
 # 1. 后端
 python3 -m venv .venv
 .venv/bin/pip install -r backend/requirements-dev.txt
+cp .env.example .env   # 填 GRILL_LLM_API_KEY；拷问相关功能才需要
 .venv/bin/uvicorn app.main:app --app-dir backend --reload
 
 # 2. 前端（另开一个终端）
