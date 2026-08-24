@@ -50,8 +50,27 @@ check('简历上传后出现在料列表', (await page.locator('.live-cr').count
 
 /* ── ① 定靶 → 首题 ───────────────────────────────────────────── */
 await page.locator('.live-jd').fill('招高级后端工程师，要求有性能调优经验，能带人，能 on-call。');
+
+/* 开场那一次 LLM 调用十几秒起步。等待期间必须说话——静默的转圈让人以为卡死。
+
+   假 LLM 秒回，等待窗口窄到 poll 不一定抓得住，所以用 MutationObserver 在
+   点下去之前就架好，把等待期间出现过的阶段文案录下来，事后再断言。 */
+await page.evaluate(() => {
+  window.__stages = [];
+  const record = () => {
+    const node = document.querySelector('.live-loading b');
+    const text = node && node.textContent.trim();
+    if (text && window.__stages.at(-1) !== text) window.__stages.push(text);
+  };
+  new MutationObserver(record).observe(document.body, { childList: true, subtree: true });
+  record();
+});
 await page.getByRole('button', { name: '开始拷问 →' }).click();
 await page.waitForSelector('.qcard', { timeout: 30000 });
+
+const openingStages = await page.evaluate(() => window.__stages);
+check('开场等待期间出现阶段性文案，不是静默转圈',
+  openingStages.some((text) => text.includes('正在')), openingStages.join(' → ') || '（一句都没有）');
 
 check('首题出现', await page.locator('.qcard .q').isVisible());
 check('问题卡带作答框', await page.locator('.live-ans-box').isVisible());
@@ -204,6 +223,70 @@ check('可以回看 v1',
 check('回看时明说改稿改的仍是最新版',
   (await page.locator('.live-revise .live-stale').innerText()).includes('v2'));
 await page.getByRole('button', { name: '回到最新版' }).click();
+
+/* ── ⑥c P1c 打磨：版本步进器 / chip 追加 / 开场阶段文案 ──────── */
+/* 步进器要能来回走，而且换版之后金色溯源和 hover 都还在——回看是读一版
+   成稿，不是把这一屏的出处线弄断。 */
+await page.getByRole('tab', { name: 'v1', exact: true }).click();
+await page.waitForSelector('.live-stale', { timeout: 10000 });
+check('步进器上当前版本可辨认',
+  (await page.locator('.live-ver.on').innerText()).trim() === 'v1');
+await page.getByRole('tab', { name: 'v2', exact: true }).click();
+await page.waitForFunction(
+  () => document.querySelector('.live-ver.on')?.textContent.trim() === 'v2',
+  null, { timeout: 10000 },
+);
+check('步进器能在版本间来回切', (await page.locator('.live-ver.on').innerText()).trim() === 'v2');
+check('切回来之后金色溯源没丢',
+  (await page.locator('.live-rewrite .sg.grill').count()) === goldCount);
+/* 换版前 hover 留下的点亮必须擦掉：那条出处线属于旧那一版，留着就是指向
+   一段已经不在纸上的文字。 */
+await page.locator('.live-rail .live-fact').first().hover();
+check('hover 事实后账本有点亮', (await page.locator('.live-rail .live-fact.lit').count()) > 0);
+await page.getByRole('tab', { name: 'v1', exact: true }).click();
+await page.waitForSelector('.live-stale', { timeout: 10000 });
+check('换版把上一版的点亮擦干净了',
+  (await page.locator('.live-rail .live-fact.lit').count()) === 0);
+/* 换完版 hover 照样能用——擦的是残留，不是把交互关掉。 */
+await page.locator('.live-rewrite .sg.grill').first().hover();
+await page.waitForSelector('#pop', { timeout: 5000 });
+check('换版之后 hover 溯源照样能用',
+  (await page.locator('.live-rail .live-fact.lit').count()) > 0);
+await page.mouse.move(0, 0);
+await page.getByRole('button', { name: '回到最新版' }).click();
+await page.waitForFunction(() => !document.querySelector('.live-stale'), null, { timeout: 10000 });
+
+/* chip 是往框里填话，不是一个选中就锁死的模式：填进去要能接着改，
+   两个 chip 要能叠，而且不许把用户已经打的字吞掉。 */
+await page.locator('.live-input').fill('');
+await page.getByRole('button', { name: '更简洁', exact: true }).click();
+check('点 chip 把指令填进输入框',
+  (await page.locator('.live-input').inputValue()) === '更简洁');
+await page.getByRole('button', { name: '去掉 AI 味', exact: true }).click();
+const twoChips = await page.locator('.live-input').inputValue();
+check('第二个 chip 是追加不是覆盖',
+  twoChips.includes('更简洁') && twoChips.includes('去掉 AI 味'), twoChips);
+check('已填进去的 chip 标出来了', (await page.locator('.live-chips .tg.on').count()) === 2);
+await page.getByRole('button', { name: '更简洁', exact: true }).click();
+check('重复点同一个 chip 不会堆两遍',
+  (await page.locator('.live-input').inputValue()) === twoChips);
+await page.locator('.live-input').fill('第二段砍一半');
+await page.getByRole('button', { name: '压到一页', exact: true }).click();
+check('chip 不吞掉用户已经打的字',
+  (await page.locator('.live-input').inputValue()) === '第二段砍一半，压到一页');
+/* 用户自己收了尾的句子后面不该再接一个逗号，接出「……。，压到一页」。 */
+await page.locator('.live-input').fill('第二段砍一半。');
+await page.getByRole('button', { name: '压到一页', exact: true }).click();
+check('用户自己点了句号时不再补逗号',
+  (await page.locator('.live-input').inputValue()) === '第二段砍一半。压到一页',
+  await page.locator('.live-input').inputValue());
+/* 只认完整分句：「更简洁一点」不是「更简洁」，不该点亮那个 chip。 */
+await page.locator('.live-input').fill('更简洁一点');
+check('手打的近似措辞不误标 chip', (await page.locator('.live-chips .tg.on').count()) === 0);
+await page.locator('.live-input').fill('口语一点，再短点');
+check('填进去之后仍可自由编辑',
+  (await page.locator('.live-input').inputValue()) === '口语一点，再短点');
+await page.locator('.live-input').fill('');
 
 /* 违规指令（要求编造）被拒绝并说明原因——产品唯一红线的出口。 */
 await page.locator('.live-input').fill('再加一段字节跳动的实习经历');
