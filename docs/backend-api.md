@@ -19,6 +19,7 @@ than another proposed table.
 | `GET` | `/api/v1/crumbs` | list the current user's uploaded crumbs |
 | `POST` | `/api/v1/attachments` | multipart upload with `file` and optional `kind` |
 | `DELETE` | `/api/v1/crumbs/{id}` | delete the crumb and its stored original |
+| `POST` | `/api/v1/repos` | connect a public GitHub repo by URL → a `kind=repo` crumb |
 | `GET` | `/` | serve the built single-file prototype |
 
 `kind` accepts `auto`, `resume`, `repo`, `notes`, `diary`, `social`, `linkedin`, or `manual`.
@@ -28,6 +29,35 @@ The demo accepts PDF, DOCX, HTML, TXT, Markdown, CSV, and JSON up to 10 MiB. Upl
 disk, hashed with SHA-256, and deduplicated per user. Extracted text becomes the `crumb.content`;
 the original file remains separate in `attachment`, so future re-extraction does not mutate the
 provenance record silently.
+
+## Connecting a public repo
+
+`POST /api/v1/repos` takes `{url}` — any shape a user might paste (`https://github.com/owner/name`,
+with `.git`, with a `/tree/main/...` subpath, `git@github.com:owner/name.git`, or bare
+`owner/name`). The adapter fetches repo metadata, the README, the 15 most recent commit messages,
+and the top-level file tree, then assembles them into one summary text that becomes
+`crumb.content`, exactly like extracted attachment text.
+
+Only public repos: no token is required, and none is sent. Private-repo listing needs a PAT and
+belongs to a later slice.
+
+Two shape decisions worth knowing before you call it:
+
+- **The response is a per-item envelope** — `{results: [{full_name, ok, crumb|error, updated}]}` —
+  and a failed fetch still returns HTTP 200 with `ok: false`. Today only one repo is connected per
+  call, so this looks like indirection; the batch (PAT) slice connects many at once, where "three
+  succeeded, two were rate-limited" has no single status code. Fixing the shape now avoids breaking
+  the contract later. The one exception is an unparseable URL: that is a `400`, because there is no
+  `full_name` to key an envelope entry on and the request itself is malformed.
+- **Repos upsert, they do not deduplicate.** Attachments dedupe by `content_hash`; a re-fetched repo
+  almost always has new content (new commits, an edited README), so hash-dedupe would stack the same
+  repo into several crumbs. A repo's identity is its `full_name`, so the crumb is replaced by
+  `(kind='repo', display_name=full_name)` and the response sets `updated: true`.
+
+Fetch failures carry the reason in `error`: a missing-or-private repo, GitHub's rate limit (60
+requests/hour unauthenticated), or a network failure. The frontend pairs that message with a way
+out — upload the repo's README as a file instead, which the existing attachment endpoint already
+accepts.
 
 ## Boundaries and production adapters
 
@@ -40,7 +70,11 @@ provenance record silently.
 - Extraction is synchronous for this 10 MiB local slice. Move scanning/OCR/extraction to a job
   queue when larger files or image-only PDFs are accepted; expose `pending/ready/failed` then.
 - The upload response is idempotent by content: a duplicate returns the existing crumb with
-  `duplicate: true` rather than creating conflicting provenance.
+  `duplicate: true` rather than creating conflicting provenance. **Repo crumbs are the one
+  carve-out**: they are keyed by `full_name`, not by content hash, because a re-fetched repo
+  almost always has new content. See "Connecting a public repo" above. Content-idempotence
+  still applies across the two paths — if a repo summary collides with an already-stored
+  crumb, the existing one is returned rather than reported as an error.
 
 ## Target backend for the complete demo
 

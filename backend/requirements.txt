@@ -1,4 +1,6 @@
 fastapi==0.116.1
+# GitHub 适配器打 api.github.com 用。
+httpx==0.28.1
 openai==3.3.1
 python-multipart==0.0.20
 pypdf==6.13.1

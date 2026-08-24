@@ -5,6 +5,7 @@
      GET    /api/v1/crumbs           列出当前用户的材料
      POST   /api/v1/attachments      上传附件 → 抽取文本 → 建 crumb
      DELETE /api/v1/crumbs/{id}      删除材料（连同落盘的原文件）
+     POST   /api/v1/repos            连一个公开仓库 → repo 料（upsert）
      POST   /api/v1/grill/sessions   开场：JD + 选料 → 挖掘树 → 首题
      GET    /api/v1/grill/sessions/{id}          会话全投影（刷新后重连现场）
      POST   /api/v1/grill/sessions/{id}/answers  作答一轮 → 事实 + 下一题/收口
@@ -66,6 +67,60 @@ export async function deleteCrumb(id) {
   const response = await fetch(`${V1}/crumbs/${encodeURIComponent(id)}`, { method: 'DELETE' });
   if (response.status === 404) throw new Error('这条材料在后端已经不存在了。');
   if (!response.ok) throw new Error(await readError(response, `删除失败（HTTP ${response.status}）`));
+}
+
+/* 连一个公开仓库：后端拉元数据 + README + 近期 commit + 文件树 → 一份 repo 料。
+
+   响应是**逐项包络**（`{results: [...]}`），HTTP 200 也可能整项失败——批量连仓
+   （PAT 那一票）时「一半成功一半失败」是常态，所以合同现在就按逐项定形。
+   这里把单项拆出来交给调用方：`{crumb, updated}` 或抛 `RepoConnectError`。
+
+   `RepoConnectError` 带 `kind`（后端的 `error_kind`），因为整个响应是 200，
+   四种失败的区分只活在包络里。UI 要靠它决定给不给「把 README 当文件上传」那段
+   兜底指引：限流、私有仓、拉取失败给得对；空仓库给了是错的（上传 README 也没有
+   README 可上传）。 */
+export class RepoConnectError extends Error {
+  constructor(message, fullName, kind) {
+    super(message);
+    this.name = 'RepoConnectError';
+    this.fullName = fullName || null;
+    this.kind = kind || 'fetch_failed';
+  }
+
+  /* 兜底指引对哪些失败是真出路。用白名单而不是「排除 empty」：
+     日后后端加一种新的失败种类时，默认不给建议比默认给错建议好。 */
+  get hasFallback() {
+    return ['not_found', 'rate_limit', 'fetch_failed'].includes(this.kind);
+  }
+}
+
+export async function connectRepo(url) {
+  let response;
+  try {
+    response = await fetch(`${V1}/repos`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ url }),
+    });
+  } catch {
+    throw new Error('连不上后端。请按 backend/README.md 的命令启动服务后重试。');
+  }
+  /* 400 是 URL 本身认不出：那时后端连 full_name 都填不出来，没有逐项包络，
+     错的是用户粘的东西，不是拉取——所以它不带兜底指引。 */
+  if (!response.ok) {
+    throw new Error(await readError(response, `连接失败（HTTP ${response.status}）`));
+  }
+  const payload = await response.json();
+  const result = (payload.results || [])[0];
+  if (!result) throw new Error('后端没有返回任何结果。');
+  if (!result.ok) {
+    throw new RepoConnectError(
+      result.error || '没能连上这个仓库。',
+      result.full_name,
+      result.error_kind,
+    );
+  }
+  return { crumb: toCrumb(result.crumb), updated: !!result.updated, fullName: result.full_name };
 }
 
 /* 开场一场拷问：定靶（JD 原文）+ 选料 → 后端规划挖掘树并出首题。
