@@ -92,13 +92,26 @@ export function reducer(state, action) {
 
     /* ═══════ 材料 ═══════ */
     case 'addCrumb': {
-      const exists = state.crumbs.some((c) => c.id === action.crumb.id);
+      /* 仓库料是 upsert 的：后端重拉一个仓库是「删旧的、插新的」，新料带的是
+         **新 id**，光按 id 合并会把已经不存在于后端的那条留在列表里，于是同一个
+         仓库在料列表里并排出现两次。
+
+         被顶掉的那条按身份找，不靠调用方传 id 进来：列表是这个 reducer 的，让
+         组件先自己算一遍「哪条会被顶掉」，就是把同一条规则写在两个地方。
+         repo 料的身份是 full_name（后端拿它做 upsert 键），前端存在 `name` 上。 */
+      const { crumb } = action;
+      const identity = (c) => c.type === 'repo' && c.type === crumb.type && c.name === crumb.name;
+      const kept = state.crumbs.filter((c) => c.id === crumb.id || !identity(c));
+      const evicted = state.crumbs.filter((c) => c.id !== crumb.id && identity(c));
+      const exists = kept.some((c) => c.id === crumb.id);
+      const sessionCrumbs = new Set(state.sessionCrumbs);
+      evicted.forEach((c) => sessionCrumbs.delete(c.id));
       return {
         ...state,
         crumbs: exists
-          ? state.crumbs.map((c) => (c.id === action.crumb.id ? { ...c, ...action.crumb } : c))
-          : [...state.crumbs, action.crumb],
-        sessionCrumbs: new Set(state.sessionCrumbs).add(action.crumb.id),
+          ? kept.map((c) => (c.id === crumb.id ? { ...c, ...crumb } : c))
+          : [...kept, crumb],
+        sessionCrumbs: sessionCrumbs.add(crumb.id),
       };
     }
 

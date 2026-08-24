@@ -3,6 +3,7 @@ from datetime import datetime, timezone
 import hashlib
 from pathlib import Path
 import re
+import sqlite3
 from typing import Any, Dict, List, Optional
 from uuid import UUID, uuid4
 
@@ -15,9 +16,10 @@ from .answer import run_turn
 from .config import Settings
 from .database import Database
 from .extraction import ExtractionError, MEDIA_TYPES, extract_text, validate_extension
-from .github import GitHub, HttpGitHub
+from .github import GitHub, GitHubError, HttpGitHub
 from .grill import GrillError, open_session, pick_baseline, question_view
 from .llm import Llm, LlmError, OpenAiLlm
+from .repos import RepoUrlError, build_repo_summary, parse_repo_url, repo_has_substance
 from .schemas import (
     CrumbListResponse,
     CrumbView,
@@ -28,6 +30,9 @@ from .schemas import (
     GrillSessionResponse,
     GrillSessionView,
     HealthResponse,
+    RepoConnectRequest,
+    RepoConnectResponse,
+    RepoResult,
     UploadResponse,
 )
 from .sessions import GrillSessionStore
@@ -35,6 +40,9 @@ from .sessions import GrillSessionStore
 
 CHUNK_SIZE = 1024 * 1024
 VALID_KINDS = {"resume", "repo", "notes", "diary", "social", "linkedin", "manual"}
+
+# GitHub 适配器的状态码 → 逐项包络里的失败种类。见 `RepoResult.error_kind`。
+_ERROR_KINDS = {404: "not_found", 429: "rate_limit", 502: "fetch_failed"}
 
 
 def utc_now() -> str:
@@ -62,6 +70,33 @@ def infer_kind(kind: str, suffix: str) -> str:
         return "resume"
     return "notes"
 
+
+
+def new_crumb(
+    user_id: str,
+    kind: str,
+    display_name: str,
+    content: str,
+    content_hash: Optional[str] = None,
+) -> Dict[str, Any]:
+    """建一份料的行。
+
+    两个建库入口（上传附件、连仓库）共用它，因为 `token_count` 的算法是一条领域
+    规则，不是某个端点的实现细节——分别写两遍，改预算口径时就会漏掉一处。
+
+    `content_hash` 可传：上传那条路是流式读文件时顺手算出来的，不必让内容再过
+    一遍 sha256。不传就按内容算。
+    """
+    return {
+        "id": str(uuid4()),
+        "user_id": user_id,
+        "kind": kind,
+        "display_name": display_name,
+        "content": content,
+        "content_hash": content_hash or hashlib.sha256(content.encode("utf-8")).hexdigest(),
+        "token_count": max(1, len(content) // 4),
+        "synced_at": utc_now(),
+    }
 
 def make_crumb_view(row: Dict[str, Any], attachment: Optional[Dict[str, Any]] = None) -> CrumbView:
     attachment_row = attachment
@@ -223,17 +258,14 @@ def create_app(
             except ExtractionError as error:
                 raise HTTPException(status_code=422, detail=str(error)) from error
 
-            now = utc_now()
-            crumb = {
-                "id": str(uuid4()),
-                "user_id": user_id,
-                "kind": infer_kind(kind, suffix),
-                "display_name": original_name,
-                "content": content,
-                "content_hash": content_hash,
-                "token_count": max(1, len(content) // 4),
-                "synced_at": now,
-            }
+            crumb = new_crumb(
+                user_id,
+                infer_kind(kind, suffix),
+                original_name,
+                content,
+                content_hash=content_hash,
+            )
+            now = crumb["synced_at"]
             attachment = {
                 "id": attachment_id,
                 "user_id": user_id,
@@ -264,6 +296,99 @@ def create_app(
             upload_root = app_settings.upload_dir.resolve()
             if upload_root in storage_path.parents:
                 storage_path.unlink(missing_ok=True)
+
+    @app.post("/api/v1/repos", response_model=RepoConnectResponse)
+    def connect_repo(
+        request: RepoConnectRequest, user_id: str = Depends(current_user_id)
+    ) -> RepoConnectResponse:
+        """连一个公开仓库：拉元数据 + README + 近期 commit + 顶层文件树 → 一份 repo 料。
+
+        **响应总是 200，失败装在逐项包络里。** 单个仓库时这看起来绕，但 PAT 那
+        一票要批量连，「三个成功两个失败」没有一个 HTTP 状态码能表达。现在就按
+        逐项定形，日后加批量入口不必破坏已经发出去的合同。
+
+        唯一的例外是 URL 认不出（400）：那时连 `full_name` 都填不出来，逐项包络
+        没有主键可用，而且这是请求本身不合法，不是某一项拉取失败。
+
+        **upsert 而不是去重。** 同一个仓库重拉，内容几乎必然变了（新 commit、
+        改过的 README），按 content_hash 去重会让它在料列表里堆成好几条。仓库的
+        身份是 `full_name`，所以按 `(kind='repo', display_name=full_name)` 替换。
+        """
+        try:
+            full_name = parse_repo_url(request.url)
+        except RepoUrlError as error:
+            raise HTTPException(status_code=400, detail=str(error)) from error
+
+        def failed(message: str, kind: str) -> RepoConnectResponse:
+            return RepoConnectResponse(
+                results=[
+                    RepoResult(full_name=full_name, ok=False, error=message, error_kind=kind)
+                ]
+            )
+
+        try:
+            repo = app_github.fetch_repo(full_name)
+        except GitHubError as error:
+            # 适配器算出的状态码在这里翻成 `error_kind`。翻译而不是直接透出数字：
+            # 整个响应是 200（逐项包络），一个裸的 404 字段只会让人以为响应本身是
+            # 404。丢掉这一层区分是不行的——批量连仓时「等会儿重试」和「重试也没用」
+            # 是两种完全不同的处置。
+            return failed(str(error), _ERROR_KINDS.get(error.status_code, "fetch_failed"))
+        except NotImplementedError:
+            # 适配器还没接（接缝占位）。这是程序错误，不该伪装成一次拉取失败。
+            raise
+        except Exception as error:  # noqa: BLE001 — 适配器的意外失败也只是这一项失败
+            return failed(f"没能从 GitHub 拉到 {full_name}：{error}", "fetch_failed")
+
+        if not repo_has_substance(repo):
+            return failed(
+                f"{full_name} 里没有可拷问的内容——没有 README、没有 commit、也没有文件。",
+                "empty",
+            )
+
+        content = build_repo_summary(repo)
+        existing = database.find_crumb_by_display_name(user_id, "repo", full_name)
+        # 内容哈希仍然写（由工厂按内容算）：附件上传那条路按它去重，仓库料虽然
+        # 走 upsert，也得有个不与别人冲突的值。
+        crumb = new_crumb(user_id, "repo", full_name, content)
+        try:
+            database.upsert_crumb(crumb, replaces_id=existing["id"] if existing else None)
+        except sqlite3.IntegrityError:
+            # 同一份内容已经作为**别的**料存在（同 user 的 content_hash 唯一约束）。
+            # 比如用户先把 README 当文件上传过，再来连仓库，两边抽出的文本一字不差。
+            #
+            # 这不是失败：用户要的是「这个仓库的内容进到我的料里」，而它已经在了。
+            # 报错会把人堵死——他没有任何操作能让自己脱困（除了先去删掉那份上传），
+            # 而上传那条路遇到同样的情况是返回已有的料（`duplicate: true`）。所以
+            # 这里也把已有的那份交回去，语义对齐。
+            twin = database.find_crumb_by_hash(user_id, crumb["content_hash"])
+            if twin is None:
+                # 约束是被别的什么撞的，我们没能力解释——按拉取失败交代。
+                return failed(
+                    f"没能把 {full_name} 存成一份料，请稍后重试。", "fetch_failed"
+                )
+            return RepoConnectResponse(
+                results=[
+                    RepoResult(
+                        full_name=full_name,
+                        ok=True,
+                        crumb=make_crumb_view(twin),
+                        # 没有新建也没有替换，交回的是本来就在的那份。
+                        updated=False,
+                    )
+                ]
+            )
+
+        return RepoConnectResponse(
+            results=[
+                RepoResult(
+                    full_name=full_name,
+                    ok=True,
+                    crumb=make_crumb_view(crumb),
+                    updated=existing is not None,
+                )
+            ]
+        )
 
     @app.post(
         "/api/v1/grill/sessions",

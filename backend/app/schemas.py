@@ -129,3 +129,46 @@ class GrillSessionView(BaseModel):
     # 已答轮数。前端拿它给问题卡编号（「第 n 问」），也决定「够了」按钮的措辞。
     answered_count: int
 
+# --- 仓库料 -----------------------------------------------------------------
+
+
+class RepoConnectRequest(BaseModel):
+    """连一个公开仓库。
+
+    `url` 而不是 `full_name`：用户手上有的是浏览器地址栏里那一串，让他自己
+    切成 owner/name 是把解析工作外包给用户。
+    """
+
+    url: str
+
+
+class RepoResult(BaseModel):
+    """逐项结果。
+
+    包络是逐项的，即使本票只连一个仓库——PAT 那一票要批量连（`{full_names}`），
+    那时「一半成功一半失败」是常态。现在就按逐项定形，日后加批量入口不必破坏
+    已经发出去的合同。
+
+    `ok=True` 时 `crumb` 有值、`error` 为空，反之亦然。`updated` 只在成功时有
+    意义：`True` 表示替换掉了同一个仓库的旧料。
+    """
+
+    full_name: str
+    ok: bool
+    crumb: Optional[CrumbView] = None
+    updated: bool = False
+    error: Optional[str] = None
+    # 失败的**种类**，不只是一句话。包络把 HTTP 状态码吃掉了（整个响应是 200），
+    # 所以四种失败的区分必须在这里活下来，否则调用方只剩一个字符串可看：
+    # 批量连仓时分不出「限流了，等会儿重试」和「这个仓不存在，重试也没用」，
+    # 前端也分不出该不该给「把 README 当文件上传」的兜底指引。
+    #   not_found  仓库不存在或不可见（私有）
+    #   rate_limit GitHub 限流，等一会儿能好
+    #   fetch_failed 拉取失败（网络、GitHub 5xx、响应解析不了）
+    #   empty      仓库拉到了但没有可拷问的内容
+    #   conflict   摘要和已有的另一份料内容相同
+    error_kind: Optional[str] = None
+
+
+class RepoConnectResponse(BaseModel):
+    results: List[RepoResult]
