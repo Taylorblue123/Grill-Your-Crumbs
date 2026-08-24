@@ -3,6 +3,7 @@ from datetime import datetime, timezone
 import hashlib
 from pathlib import Path
 import re
+import sqlite3
 from typing import Any, Dict, List, Optional
 from uuid import UUID, uuid4
 
@@ -15,9 +16,11 @@ from .answer import run_turn
 from .config import Settings
 from .database import Database
 from .extraction import ExtractionError, MEDIA_TYPES, extract_text, validate_extension
-from .github import GitHub, HttpGitHub
+from .github import GitHub, GitHubError, HttpGitHub
 from .grill import GrillError, open_session, pick_baseline, question_view
 from .llm import Llm, LlmError, OpenAiLlm
+from .repos import RepoUrlError, build_repo_summary, parse_repo_url, repo_has_substance
+from .rewrite import cache_key, run_rewrite
 from .schemas import (
     CrumbListResponse,
     CrumbView,
@@ -28,6 +31,13 @@ from .schemas import (
     GrillSessionResponse,
     GrillSessionView,
     HealthResponse,
+    RepoConnectRequest,
+    RepoConnectResponse,
+    RepoResult,
+    RewriteHistoryResponse,
+    RewriteRequest,
+    RewriteResponse,
+    RewriteVersionView,
     UploadResponse,
 )
 from .sessions import GrillSessionStore
@@ -35,6 +45,9 @@ from .sessions import GrillSessionStore
 
 CHUNK_SIZE = 1024 * 1024
 VALID_KINDS = {"resume", "repo", "notes", "diary", "social", "linkedin", "manual"}
+
+# GitHub 适配器的状态码 → 逐项包络里的失败种类。见 `RepoResult.error_kind`。
+_ERROR_KINDS = {404: "not_found", 429: "rate_limit", 502: "fetch_failed"}
 
 
 def utc_now() -> str:
@@ -62,6 +75,33 @@ def infer_kind(kind: str, suffix: str) -> str:
         return "resume"
     return "notes"
 
+
+
+def new_crumb(
+    user_id: str,
+    kind: str,
+    display_name: str,
+    content: str,
+    content_hash: Optional[str] = None,
+) -> Dict[str, Any]:
+    """建一份料的行。
+
+    两个建库入口（上传附件、连仓库）共用它，因为 `token_count` 的算法是一条领域
+    规则，不是某个端点的实现细节——分别写两遍，改预算口径时就会漏掉一处。
+
+    `content_hash` 可传：上传那条路是流式读文件时顺手算出来的，不必让内容再过
+    一遍 sha256。不传就按内容算。
+    """
+    return {
+        "id": str(uuid4()),
+        "user_id": user_id,
+        "kind": kind,
+        "display_name": display_name,
+        "content": content,
+        "content_hash": content_hash or hashlib.sha256(content.encode("utf-8")).hexdigest(),
+        "token_count": max(1, len(content) // 4),
+        "synced_at": utc_now(),
+    }
 
 def make_crumb_view(row: Dict[str, Any], attachment: Optional[Dict[str, Any]] = None) -> CrumbView:
     attachment_row = attachment
@@ -223,17 +263,14 @@ def create_app(
             except ExtractionError as error:
                 raise HTTPException(status_code=422, detail=str(error)) from error
 
-            now = utc_now()
-            crumb = {
-                "id": str(uuid4()),
-                "user_id": user_id,
-                "kind": infer_kind(kind, suffix),
-                "display_name": original_name,
-                "content": content,
-                "content_hash": content_hash,
-                "token_count": max(1, len(content) // 4),
-                "synced_at": now,
-            }
+            crumb = new_crumb(
+                user_id,
+                infer_kind(kind, suffix),
+                original_name,
+                content,
+                content_hash=content_hash,
+            )
+            now = crumb["synced_at"]
             attachment = {
                 "id": attachment_id,
                 "user_id": user_id,
@@ -264,6 +301,99 @@ def create_app(
             upload_root = app_settings.upload_dir.resolve()
             if upload_root in storage_path.parents:
                 storage_path.unlink(missing_ok=True)
+
+    @app.post("/api/v1/repos", response_model=RepoConnectResponse)
+    def connect_repo(
+        request: RepoConnectRequest, user_id: str = Depends(current_user_id)
+    ) -> RepoConnectResponse:
+        """连一个公开仓库：拉元数据 + README + 近期 commit + 顶层文件树 → 一份 repo 料。
+
+        **响应总是 200，失败装在逐项包络里。** 单个仓库时这看起来绕，但 PAT 那
+        一票要批量连，「三个成功两个失败」没有一个 HTTP 状态码能表达。现在就按
+        逐项定形，日后加批量入口不必破坏已经发出去的合同。
+
+        唯一的例外是 URL 认不出（400）：那时连 `full_name` 都填不出来，逐项包络
+        没有主键可用，而且这是请求本身不合法，不是某一项拉取失败。
+
+        **upsert 而不是去重。** 同一个仓库重拉，内容几乎必然变了（新 commit、
+        改过的 README），按 content_hash 去重会让它在料列表里堆成好几条。仓库的
+        身份是 `full_name`，所以按 `(kind='repo', display_name=full_name)` 替换。
+        """
+        try:
+            full_name = parse_repo_url(request.url)
+        except RepoUrlError as error:
+            raise HTTPException(status_code=400, detail=str(error)) from error
+
+        def failed(message: str, kind: str) -> RepoConnectResponse:
+            return RepoConnectResponse(
+                results=[
+                    RepoResult(full_name=full_name, ok=False, error=message, error_kind=kind)
+                ]
+            )
+
+        try:
+            repo = app_github.fetch_repo(full_name)
+        except GitHubError as error:
+            # 适配器算出的状态码在这里翻成 `error_kind`。翻译而不是直接透出数字：
+            # 整个响应是 200（逐项包络），一个裸的 404 字段只会让人以为响应本身是
+            # 404。丢掉这一层区分是不行的——批量连仓时「等会儿重试」和「重试也没用」
+            # 是两种完全不同的处置。
+            return failed(str(error), _ERROR_KINDS.get(error.status_code, "fetch_failed"))
+        except NotImplementedError:
+            # 适配器还没接（接缝占位）。这是程序错误，不该伪装成一次拉取失败。
+            raise
+        except Exception as error:  # noqa: BLE001 — 适配器的意外失败也只是这一项失败
+            return failed(f"没能从 GitHub 拉到 {full_name}：{error}", "fetch_failed")
+
+        if not repo_has_substance(repo):
+            return failed(
+                f"{full_name} 里没有可拷问的内容——没有 README、没有 commit、也没有文件。",
+                "empty",
+            )
+
+        content = build_repo_summary(repo)
+        existing = database.find_crumb_by_display_name(user_id, "repo", full_name)
+        # 内容哈希仍然写（由工厂按内容算）：附件上传那条路按它去重，仓库料虽然
+        # 走 upsert，也得有个不与别人冲突的值。
+        crumb = new_crumb(user_id, "repo", full_name, content)
+        try:
+            database.upsert_crumb(crumb, replaces_id=existing["id"] if existing else None)
+        except sqlite3.IntegrityError:
+            # 同一份内容已经作为**别的**料存在（同 user 的 content_hash 唯一约束）。
+            # 比如用户先把 README 当文件上传过，再来连仓库，两边抽出的文本一字不差。
+            #
+            # 这不是失败：用户要的是「这个仓库的内容进到我的料里」，而它已经在了。
+            # 报错会把人堵死——他没有任何操作能让自己脱困（除了先去删掉那份上传），
+            # 而上传那条路遇到同样的情况是返回已有的料（`duplicate: true`）。所以
+            # 这里也把已有的那份交回去，语义对齐。
+            twin = database.find_crumb_by_hash(user_id, crumb["content_hash"])
+            if twin is None:
+                # 约束是被别的什么撞的，我们没能力解释——按拉取失败交代。
+                return failed(
+                    f"没能把 {full_name} 存成一份料，请稍后重试。", "fetch_failed"
+                )
+            return RepoConnectResponse(
+                results=[
+                    RepoResult(
+                        full_name=full_name,
+                        ok=True,
+                        crumb=make_crumb_view(twin),
+                        # 没有新建也没有替换，交回的是本来就在的那份。
+                        updated=False,
+                    )
+                ]
+            )
+
+        return RepoConnectResponse(
+            results=[
+                RepoResult(
+                    full_name=full_name,
+                    ok=True,
+                    crumb=make_crumb_view(crumb),
+                    updated=existing is not None,
+                )
+            ]
+        )
 
     @app.post(
         "/api/v1/grill/sessions",
@@ -317,6 +447,8 @@ def create_app(
             facts=[],
             history=[],
             done=False,
+            # 成稿版本历史，改写那一片追加。空 = 还没出过初稿。
+            rewrites=[],
             created_at=utc_now(),
         )
 
@@ -432,6 +564,144 @@ def create_app(
             question=turn["question"],
             done=turn["done"],
         )
+
+    def rewrite_view(version: Dict[str, Any], original_text: str) -> RewriteResponse:
+        return RewriteResponse(
+            version=version["version"],
+            original_text=original_text,
+            segments=version["segments"],
+            stats=version["stats"],
+            instruction=version.get("instruction"),
+            refusal=version.get("refusal"),
+        )
+
+    def baseline_text_of(session: Dict[str, Any], user_id: str) -> str:
+        """取底稿简历的正文。
+
+        会话只记 `baseline_crumb_id`，正文每次现从库里读——把整份简历也塞进会话
+        状态会让内存仓和 dev 镜像里多一份随时可能和料库对不上的副本。
+        料被删掉是可能的（用户在别处删了它），那时底稿为空串：改写照样能跑，
+        只是左边没有可比的原文，成稿全部落在账本上。
+        """
+        rows = database.list_crumbs_by_ids(user_id, [session["baseline_crumb_id"]])
+        return rows[0]["content"] if rows else ""
+
+    @app.post(
+        "/api/v1/grill/sessions/{session_id}/rewrite",
+        response_model=RewriteResponse,
+    )
+    def rewrite_session(
+        session_id: str,
+        request: RewriteRequest,
+        user_id: str = Depends(current_user_id),
+    ) -> RewriteResponse:
+        """出初稿，或按一条自然语言指令改稿。
+
+        `instruction` 为空 = 初稿（v1）；带指令 = 在最新一版上改，版本 +1。
+
+        三条不变量在这里守住：
+
+        **缓存按参数**（issue #27 验收）。同一版本 + 同一指令重复调用返回缓存，不烧第二次
+        token——双击「改稿」、网络重发都走这条。缓存查在调 LLM 之前。
+
+        **失败原子性**（同 `run_turn` 的纪律）。`run_rewrite` 是纯函数不碰会话仓，
+        版本在它成功返回之后一次性追加。LLM 失败时历史一个字没变，同一指令可安全重发。
+
+        **拒绝是 200 不是错误**。指令要求编造未挖到的经历时，成稿维持上一版原样，
+        `refusal` 带上理由。走错误码会诱使前端把它当故障重试，而重试一条编造指令
+        没有意义——用户需要读到的是「为什么不给你写」。
+        """
+        session = load_session(session_id, user_id)
+        versions: List[Dict[str, Any]] = session.get("rewrites") or []
+        instruction = (request.instruction or "").strip() or None
+        base_version = versions[-1]["version"] if versions else 0
+
+        if instruction is None and versions:
+            # 无指令 = 「给我看初稿」。已经出过稿就把最新一版交回去，不重跑一次
+            # LLM——前端每次进对比视图都会调这个端点。
+            return rewrite_view(versions[-1], baseline_text_of(session, user_id))
+
+        # 缓存查的是**最新那一版**是不是正好由这条指令产出的。双击「改稿」、网络
+        # 重发都长这样：第一次已经把 v2 写好了，第二次带着同一条指令再来。
+        #
+        # 不扫全部历史：同一条指令在 v1 上和在 v2 上是两次不同的改写（「口语一点」
+        # 改过一轮之后再来一次，用户要的是在当前这版上继续，不是回到那个旧版）。
+        # `cache_key` 带上底版本号，正是为了让这两次不互相顶掉。
+        #
+        # `base_version - 1` 不是笔误：存进去的键记的是那一版**当初的底版本**，
+        # 而它自己就是现在的 `base_version`，所以它的底版本比现在小一。
+        if versions and tuple(versions[-1].get("cache_key") or ()) == cache_key(
+            base_version - 1, instruction
+        ):
+            return rewrite_view(versions[-1], baseline_text_of(session, user_id))
+
+        baseline_text = baseline_text_of(session, user_id)
+        try:
+            produced = run_rewrite(
+                llm=app_llm,
+                session=session,
+                baseline_text=baseline_text,
+                crumbs=database.list_crumbs_by_ids(user_id, session.get("crumb_ids") or []),
+                instruction=instruction,
+                previous=versions[-1] if versions else None,
+            )
+        except (LlmError, GrillError) as error:
+            raise HTTPException(status_code=502, detail=str(error)) from error
+
+        version = {
+            "version": base_version + 1,
+            "instruction": instruction,
+            "segments": produced["segments"],
+            "stats": produced["stats"],
+            "refusal": produced["refusal"],
+            # 记下这一版是「在哪一版上执行哪条指令」得来的——下一次同样的请求
+            # 靠它认出自己是一次重发。
+            "cache_key": list(cache_key(base_version, instruction)),
+            "created_at": utc_now(),
+        }
+        sessions.update(session_id, rewrites=[*versions, version])
+
+        return rewrite_view(version, baseline_text)
+
+    @app.get(
+        "/api/v1/grill/sessions/{session_id}/rewrite/versions",
+        response_model=RewriteHistoryResponse,
+    )
+    def list_rewrite_versions(
+        session_id: str, user_id: str = Depends(current_user_id)
+    ) -> RewriteHistoryResponse:
+        """版本步进器的数据源：有哪些版本、各自是哪条指令改出来的。"""
+        session = load_session(session_id, user_id)
+        return RewriteHistoryResponse(
+            versions=[
+                RewriteVersionView(
+                    version=version["version"], instruction=version.get("instruction")
+                )
+                for version in session.get("rewrites") or []
+            ]
+        )
+
+    @app.get(
+        "/api/v1/grill/sessions/{session_id}/rewrite/{version}",
+        response_model=RewriteResponse,
+    )
+    def get_rewrite_version(
+        session_id: str, version: int, user_id: str = Depends(current_user_id)
+    ) -> RewriteResponse:
+        """回看某一版。「比较并回到更好的一版」的读路径。
+
+        回看是纯读：不把旧版复制成新版。用户在 v3 上回看 v1 之后再改稿，改的仍然是
+        v3——「回到 v1 再改」是另一个产品动作，本切片不做（issue #22 明确把多版本
+        并排对比划在范围外）。
+        """
+        session = load_session(session_id, user_id)
+        found = next(
+            (item for item in session.get("rewrites") or [] if item["version"] == version),
+            None,
+        )
+        if found is None:
+            raise HTTPException(status_code=404, detail="没有这一版成稿。")
+        return rewrite_view(found, baseline_text_of(session, user_id))
 
     # React 前端的静态资源。只在构建过之后挂载 —— 跑后端测试时 dist/ 不存在是正常的。
     frontend_assets = app_settings.frontend_dist / "assets"

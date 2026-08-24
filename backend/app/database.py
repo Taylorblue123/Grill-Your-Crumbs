@@ -43,6 +43,17 @@ CREATE INDEX IF NOT EXISTS attachment_user_created_at
 """
 
 
+CRUMB_INSERT = """
+    INSERT INTO crumb (
+        id, user_id, kind, display_name, content, content_hash,
+        token_count, synced_at
+    ) VALUES (
+        :id, :user_id, :kind, :display_name, :content, :content_hash,
+        :token_count, :synced_at
+    )
+"""
+
+
 class Database:
     def __init__(self, path: Path):
         self.path = path
@@ -66,6 +77,37 @@ class Database:
             ).fetchone()
             return dict(row) if row else None
 
+    def find_crumb_by_display_name(
+        self, user_id: str, kind: str, display_name: str
+    ) -> Optional[Dict[str, Any]]:
+        """按 (kind, display_name) 找料。仓库料的 upsert 键就是这一对。
+
+        为什么不是 content_hash：重拉一个仓库，内容几乎必然变了（新 commit、
+        改过的 README），哈希对不上，去重逻辑会当成一份新料，于是同一个仓库在
+        列表里堆成好几条。仓库的身份是 `full_name`，不是它某一刻的内容。
+        """
+        with self.connect() as connection:
+            row = connection.execute(
+                "SELECT * FROM crumb WHERE user_id = ? AND kind = ? AND display_name = ?",
+                (user_id, kind, display_name),
+            ).fetchone()
+            return dict(row) if row else None
+
+    def upsert_crumb(self, crumb: Dict[str, Any], replaces_id: Optional[str] = None) -> None:
+        """写一份无附件的料；给了 `replaces_id` 就在同一事务里先删掉旧的那份。
+
+        删+插而不是 UPDATE：旧料可能挂着附件（用户先上传过 README 又来连仓），
+        DELETE 的级联会把它一起清掉，UPDATE 会留下一条指向新内容的陈旧附件。
+        同一事务保证不会出现「旧的删了、新的没进去」的空档。
+        """
+        with self.connect() as connection:
+            if replaces_id:
+                connection.execute(
+                    "DELETE FROM crumb WHERE user_id = ? AND id = ?",
+                    (crumb["user_id"], replaces_id),
+                )
+            connection.execute(CRUMB_INSERT, crumb)
+
     def get_attachment_for_crumb(self, crumb_id: str) -> Optional[Dict[str, Any]]:
         with self.connect() as connection:
             row = connection.execute(
@@ -75,18 +117,7 @@ class Database:
 
     def insert_upload(self, crumb: Dict[str, Any], attachment: Dict[str, Any]) -> None:
         with self.connect() as connection:
-            connection.execute(
-                """
-                INSERT INTO crumb (
-                    id, user_id, kind, display_name, content, content_hash,
-                    token_count, synced_at
-                ) VALUES (
-                    :id, :user_id, :kind, :display_name, :content, :content_hash,
-                    :token_count, :synced_at
-                )
-                """,
-                crumb,
-            )
+            connection.execute(CRUMB_INSERT, crumb)
             connection.execute(
                 """
                 INSERT INTO attachment (

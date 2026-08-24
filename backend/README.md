@@ -66,7 +66,36 @@ listed in `.env.example`. The local demo uses one fixed user id; production must
 - **上下文**：每轮 prompt = 挖掘树 + 事实账本 + 近 3 轮问答 + JD。料不再整份重发，
   开场那一次已经读过，账本承担「已经知道什么」的记忆。
 
+`POST /api/v1/grill/sessions/{id}/rewrite` 成稿改写：`{instruction|null}` → 一版带出处的成稿
+`{version, original_text, segments, stats, instruction, refusal}`。`instruction` 为空 = 出初稿；
+带指令 = 在最新一版上改稿，版本 +1。配套两条读路径：
+`GET .../rewrite/versions` 版本历史、`GET .../rewrite/{version}` 回看某一版。
+
+每个 `segment` 带 `source` 与 `fact_ids`：`original` 原简历本来就有、`turn:<turn_id>` 拷问
+某一轮挖到的、`crumb:<crumb_id>` 某份料里读到的。非 `original` 即前端染金的那些；
+`round / question_text / answer_text` 随段落一起下发，hover 金色片段直接显示「来自第几问」，
+前端不必回头反查账本。
+
+改写的几条规则：
+
+- **输入是事实账本，不是原始问答记录**：问答记录里夹着语气词和跑题，让模型从中重新挑
+  事实等于把作答那一片做过的事再做一遍，且做得更差。账本已经一条一句、条条带出处。
+- **红线：真缺口不进生成上下文**（ADR-0002 后果 1）。强制方式是「账本即全部事实来源」——
+  没挖到的东西压根不在 prompt 里，模型没见过的东西谈不上围绕它编造。
+- **拒绝是 200 不是错误**：指令要求编造未挖到的经历时，`refusal` 带上理由，成稿维持上一版
+  原样。走错误码会诱使前端把它当故障重试，而重试一条编造指令没有意义。
+- **缓存按参数**：同一版本 + 同一指令重复调用返回缓存（双击、网络重发都走这条），不烧
+  第二次 token。缓存键是 `(底版本号, 指令)`——同一句指令在 v1 上和在 v2 上是两次不同的改写。
+- **失败原子性**：同作答那一片，`run_rewrite` 是纯函数不碰会话仓，LLM 失败时版本历史一个字
+  没变，同一指令可安全重发。
+- **溯源靠 LLM 自证**：服务端不做溯源校验（issue #22 评审张力 2 显式接受的风险，防线在 eval
+  票，见 `TODOS.md`）。这里只清洗悬空引用——指不到账本的 `fact_ids` 丢掉、指向不存在轮次的
+  段落降级为 `original`，免得前端 hover 出一张空卡片。
+- **风格模板不进后端**：预置指令 chip 只是前端往指令框填话的 UI 糖。
+
 前端的真实链路在 `#screen=live`（落地页有独立入口），和剧本 demo 完全分开。
+拷问收口或中断之后自动出初稿，左右对比视图（左原简历、右成稿）沿用成果页版式与
+`.sg` 三色出处的 CSS，数据一个字都不来自剧本假数据。
 会话 id 存在 sessionStorage，进 Live 屏时自动重连；会话 404（后端重启丢会话）
 时给「重开一场」提示。
 
@@ -74,7 +103,7 @@ listed in `.env.example`. The local demo uses one fixed user id; production must
 
 ### 联调（真前后端 + 假 LLM）
 
-作答循环的验收标准都是行为性的，跑一遍点给自己看：
+作答循环与成稿对比的验收标准都是行为性的，跑一遍点给自己看：
 
 ```sh
 cd frontend && npm run build && cd ..

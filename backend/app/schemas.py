@@ -129,3 +129,116 @@ class GrillSessionView(BaseModel):
     # 已答轮数。前端拿它给问题卡编号（「第 n 问」），也决定「够了」按钮的措辞。
     answered_count: int
 
+
+# --- 成稿改写 ---------------------------------------------------------------
+
+
+class RewriteRequest(BaseModel):
+    """一次改写。
+
+    `instruction` 为空 = 出初稿（v1）；带指令 = 在上一版基础上改稿，版本 +1。
+    指令只能改表达不能改事实——这条由改写 prompt 与拒绝路径守住，不在这里校验。
+    """
+
+    instruction: Optional[str] = None
+
+
+class SegmentView(BaseModel):
+    """成稿里的一段，以及它的出处。
+
+    `source` 三取一：`original` 原简历本来就有、`turn:<turn_id>` 拷问某一轮挖到的、
+    `crumb:<crumb_id>` 某份料里读到的。金色染色读的就是它——非 `original` 即金色。
+
+    `fact_ids` 指回账本：hover 金色片段要显示「来自第几轮的哪个问答」，
+    靠的是这些 id 反查账本条目的 `turn_id` 与 `round`。
+    """
+
+    text: str
+    source: str
+    fact_ids: List[str] = []
+    # 这一段来自第几轮（`source` 为 turn 时才有）。前端不必自己反查账本。
+    round: Optional[int] = None
+    # 那一轮问了什么、用户怎么答的——hover 卡片的正文。
+    question_text: Optional[str] = None
+    answer_text: Optional[str] = None
+
+
+class RewriteStats(BaseModel):
+    """一眼看到「同一段经历，x 处是刚从我嘴里挖出来的」。"""
+
+    total_segments: int
+    grilled_segments: int
+    fact_count: int
+
+
+class RewriteResponse(BaseModel):
+    """一版成稿。
+
+    `original_text` 每版都带：左右对比视图左边永远是原简历，前端不必自己去
+    料库里捞底稿——它拿到的 crumb 列表里未必有当前会话的那一份。
+    """
+
+    version: int
+    original_text: str
+    segments: List[SegmentView]
+    stats: RewriteStats
+    # 产出这一版的指令（初稿为 null）。版本步进器上写「v2 · 口语一点」。
+    instruction: Optional[str] = None
+    # 指令被拒时为拒绝理由，此时成稿维持上一版原样。
+    refusal: Optional[str] = None
+
+
+class RewriteVersionView(BaseModel):
+    """版本历史里的一项。回看旧版走 `GET .../rewrite/{version}`。"""
+
+    version: int
+    instruction: Optional[str] = None
+
+
+class RewriteHistoryResponse(BaseModel):
+    versions: List[RewriteVersionView]
+
+
+# --- 仓库料 -----------------------------------------------------------------
+
+
+class RepoConnectRequest(BaseModel):
+    """连一个公开仓库。
+
+    `url` 而不是 `full_name`：用户手上有的是浏览器地址栏里那一串，让他自己
+    切成 owner/name 是把解析工作外包给用户。
+    """
+
+    url: str
+
+
+class RepoResult(BaseModel):
+    """逐项结果。
+
+    包络是逐项的，即使本票只连一个仓库——PAT 那一票要批量连（`{full_names}`），
+    那时「一半成功一半失败」是常态。现在就按逐项定形，日后加批量入口不必破坏
+    已经发出去的合同。
+
+    `ok=True` 时 `crumb` 有值、`error` 为空，反之亦然。`updated` 只在成功时有
+    意义：`True` 表示替换掉了同一个仓库的旧料。
+    """
+
+    full_name: str
+    ok: bool
+    crumb: Optional[CrumbView] = None
+    updated: bool = False
+    error: Optional[str] = None
+    # 失败的**种类**，不只是一句话。包络把 HTTP 状态码吃掉了（整个响应是 200），
+    # 所以四种失败的区分必须在这里活下来，否则调用方只剩一个字符串可看：
+    # 批量连仓时分不出「限流了，等会儿重试」和「这个仓不存在，重试也没用」，
+    # 前端也分不出该不该给「把 README 当文件上传」的兜底指引。
+    #   not_found  仓库不存在或不可见（私有）
+    #   rate_limit GitHub 限流，等一会儿能好
+    #   fetch_failed 拉取失败（网络、GitHub 5xx、响应解析不了）
+    #   empty      仓库拉到了但没有可拷问的内容
+    #   conflict   摘要和已有的另一份料内容相同
+    error_kind: Optional[str] = None
+
+
+class RepoConnectResponse(BaseModel):
+    results: List[RepoResult]

@@ -417,3 +417,268 @@ textarea.cp-in::placeholder { color: var(--fg-mute); }
 @media (prefers-reduced-motion: reduce) {
   .live-fact.born { animation: none; }
 }
+
+/* --- 成稿对比（RewriteView）---------------------------------------------- */
+
+/* 收口之后这一屏是工作台，不是阅读栏：三栏并排需要宽度。 */
+.live-wrap.wide { max-width: 1360px; padding-top: 22px; }
+
+/* ── 总结条：贴顶。「复制 Markdown」是 P0a 的出口，滚到哪都够得着。 ── */
+.live-rewrite-h {
+  position: sticky;
+  top: 0;
+  z-index: 6;
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 24px;
+  padding: 14px 0 16px;
+  margin-bottom: 18px;
+  background: var(--bg);
+  border-bottom: 1px solid var(--line);
+}
+.live-rewrite-sum { min-width: 0; }
+.live-rewrite-h h3 {
+  font-family: var(--display);
+  font-size: 22px;
+  font-weight: 500;
+  letter-spacing: var(--h-track);
+  line-height: 1.35;
+  margin-top: 8px;
+  color: var(--fg-dim);
+}
+.live-rewrite-h h3 b { font-weight: var(--h-weight); color: var(--fg); }
+/* 三个数里只有最后一个是这一屏新告诉用户的：其余两个他在账本里早看过了。 */
+.live-rewrite-h h3 b.gold {
+  color: var(--gold-ink);
+  background: linear-gradient(transparent 62%, var(--gold-fill) 62%);
+  padding: 0 3px;
+}
+.live-rewrite-h p {
+  margin: 6px 0 0;
+  font-size: 12.5px;
+  line-height: 1.7;
+  color: var(--fg-mute);
+  max-width: 62em;
+}
+.live-rewrite-tools { display: flex; gap: 8px; flex: none; padding-top: 4px; }
+.live-rewrite-tools .gbtn[disabled] { opacity: .45; cursor: not-allowed; }
+
+/* 复制不了时才亮出来的兜底文本框：用户自己按 Ctrl+C。 */
+.live-copy-fallback {
+  width: 100%;
+  margin: 0 0 16px;
+  min-height: 140px;
+  font: inherit;
+  font-size: 12.5px;
+  line-height: 1.7;
+  border: 1px solid var(--gold-bd);
+  border-radius: var(--r3);
+  padding: 12px 14px;
+  background: var(--card);
+  color: var(--fg);
+}
+
+/* ── 三栏 ──
+   原简历 · 新简历 · 账本。新简历是唯一的白色纸面，最宽；原简历沉底压暗；
+   账本没有边框——它是纸的页边注，不是又一张卡片。 */
+.live-cmp {
+  display: grid;
+  grid-template-columns: minmax(0, .8fr) minmax(0, 1.25fr) 248px;
+  gap: 20px;
+  align-items: start;
+}
+.live-cmp .pn { padding: 20px 22px 22px; }
+.live-cmp .pn-t { margin-bottom: 16px; flex-wrap: wrap; }
+.live-cmp .pn.before .old {
+  white-space: pre-wrap;
+  font-size: 13.5px;
+  line-height: 1.9;
+  color: var(--fg-mute);
+}
+.live-cmp .pn.after { box-shadow: var(--shadow-sm); }
+.live-cmp .sheet .bul {
+  align-items: baseline;
+  margin-bottom: 10px;
+  padding: 3px 8px 3px 0;
+  border-radius: var(--r2);
+  transition: background .15s;
+}
+.live-cmp .sheet .bul .tx { flex: 1; }
+/* 沟槽固定宽，让所有段落的正文左对齐——不管沟槽里是破折号还是轮号。 */
+.live-cmp .sheet .bd {
+  width: 22px;
+  text-align: center;
+  font-size: 12px;
+  line-height: 1.78;
+}
+/* 轮号：金色段落的出处本身。小、圆、用等宽——它是个索引，不是标题。 */
+.live-cmp .sheet .bd .rd {
+  display: inline-block;
+  font-style: normal;
+  font-family: var(--mono);
+  font-size: 10px;
+  font-weight: 700;
+  line-height: 17px;
+  min-width: 17px;
+  padding: 0 4px;
+  border-radius: var(--rp);
+  background: var(--gold-bg);
+  border: 1px solid var(--gold-bd);
+  color: var(--gold-ink);
+}
+.live-cmp .sheet .bul .tx { flex: 1; }
+/* 点亮：hover 账本某条事实时，引用它的段落整行浮出一层金晕。 */
+.live-cmp .sheet .bul.lit { background: var(--gold-halo); }
+.live-cmp .sheet .bul.src.lit { background: var(--blue-bg); }
+
+.live-back { margin-top: 14px; }
+
+/* ── 版本：挂在新简历的标题行右侧，而不是漂在页面中间。 ── */
+.live-versions { display: flex; gap: 5px; margin-left: auto; }
+.live-ver {
+  font: inherit;
+  font-size: 10.5px;
+  font-weight: 700;
+  letter-spacing: 0;
+  cursor: pointer;
+  border: 1px solid var(--line-hard);
+  background: var(--card);
+  color: var(--fg-dim);
+  border-radius: var(--rp);
+  padding: 1px 9px;
+  line-height: 1.6;
+}
+.live-ver:hover:not([disabled]) { border-color: var(--fg-mute); color: var(--fg); }
+.live-ver.on { border-color: var(--gold); background: var(--gold-bg); color: var(--gold-ink); }
+.live-ver[disabled] { opacity: .45; cursor: not-allowed; }
+/* 回看旧版时的提示。用蓝不用红：回看不是出错。 */
+.live-stale {
+  font-style: normal;
+  font-weight: 700;
+  font-size: 10px;
+  letter-spacing: 0;
+  color: var(--blue-ink);
+  background: var(--blue-bg);
+  border-radius: var(--rp);
+  padding: 1px 8px;
+}
+
+/* ── 改稿：对纸的批注，画在纸的下缘。 ── */
+.live-revise {
+  margin-top: 22px;
+  padding-top: 16px;
+  border-top: 1px dashed var(--line-hard);
+}
+.live-revise-h { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; margin-bottom: 9px; }
+.live-revise-h small { font-size: 11.5px; color: var(--fg-mute); }
+.live-chips { display: flex; gap: 6px; flex-wrap: wrap; margin-bottom: 8px; }
+.live-chips .tg[disabled] { opacity: .45; cursor: not-allowed; }
+.live-revise-row { display: flex; gap: 8px; align-items: stretch; }
+.live-input {
+  flex: 1;
+  min-width: 0;
+  resize: none;
+  font: inherit;
+  font-size: 13.3px;
+  line-height: 1.6;
+  color: var(--fg);
+  background: var(--sunk);
+  border: 1px solid transparent;
+  border-radius: var(--r3);
+  padding: 10px 13px;
+}
+.live-input:focus { outline: none; border-color: var(--blue); background: var(--card); }
+.live-input::placeholder { color: var(--fg-mute); }
+.live-input[disabled] { opacity: .6; }
+.live-revise-row .act { align-self: flex-end; white-space: nowrap; }
+.live-revise-row .act[disabled] { opacity: .45; cursor: not-allowed; }
+/* 拒绝：紧挨着那条指令，是对它的回复。红色只用在左边一道线上——
+   它确实是一次拒绝，但版式要像一句解释，不像一条报错。 */
+.live-refusal {
+  margin-top: 12px;
+  padding: 8px 0 2px 13px;
+  border-left: 2px solid var(--red);
+  font-size: 13px;
+  line-height: 1.75;
+  color: var(--fg-dim);
+}
+.live-refusal b { color: var(--red-ink); font-weight: 700; }
+.live-refusal p { margin: 2px 0 0; }
+
+/* ── 出处边栏：账本。贴顶跟着滚，正文长了它也一直在视野里。 ── */
+.live-rail {
+  position: sticky;
+  top: 118px;
+  max-height: calc(100vh - 150px);
+  overflow: auto;
+  padding: 2px 2px 8px;
+  scrollbar-width: thin;
+}
+.live-rail-h { display: flex; align-items: center; gap: 8px; margin-bottom: 10px; }
+.live-rail-h .b {
+  font-size: 10.5px;
+  font-weight: 750;
+  min-width: 20px;
+  padding: 0 6px;
+  border-radius: var(--rp);
+  background: var(--sunk2);
+  color: var(--fg-mute);
+  text-align: center;
+  line-height: 18px;
+}
+.live-rail-h .b.has { background: var(--gold); color: var(--on-gold); }
+.live-rail-empty { font-size: 12.5px; line-height: 1.75; color: var(--fg-mute); margin: 0; }
+.live-rail .live-facts { gap: 6px; margin-top: 0; }
+/* 边栏里的事实不是卡片，是页边注：去掉底色和描边，只留一道左线。
+   作答阶段的 .live-fact 是卡片，因为那时它是主角；在这里它是出处。 */
+.live-rail .live-fact {
+  padding: 4px 0 4px 11px;
+  border: 0;
+  border-left: 2px solid var(--line-hard);
+  border-radius: 0;
+  background: transparent;
+  cursor: default;
+  transition: border-color .15s, background .15s, opacity .15s;
+}
+.live-rail .live-fact .tx { font-size: 12.5px; line-height: 1.6; }
+.live-rail .live-fact .meta { font-family: var(--mono); font-size: 10px; letter-spacing: .3px; }
+/* 点亮：hover 一段金色，它依据的事实亮起来——出处那条线的另一头。 */
+.live-rail .live-fact.lit {
+  border-left-color: var(--gold);
+  background: var(--gold-bg);
+  border-radius: 0 var(--r2) var(--r2) 0;
+  padding-right: 8px;
+}
+/* 没进这版的事实压暗：对成稿诚实，账本里有但没写进去的一眼看得出。 */
+.live-rail .live-fact.unused { opacity: .55; }
+.live-rail .live-fact.unused.lit { opacity: 1; }
+.live-rail-legend {
+  display: flex;
+  gap: 14px;
+  margin-top: 14px;
+  padding-top: 10px;
+  border-top: 1px solid var(--line);
+  font-size: 11px;
+  color: var(--fg-mute);
+}
+.live-rail-legend span { display: inline-flex; align-items: center; gap: 6px; }
+.live-rail-legend .sw { width: 10px; height: 10px; border-radius: var(--r1); }
+.live-rail-legend .sw.g { background: var(--gold); }
+.live-rail-legend .sw.s { background: var(--blue); }
+
+/* 中屏：账本挪到下方横排；小屏：三栏叠成一列，原简历在上——
+   先看见「我原来写的」，再看见「问完之后变成什么样」，顺序不能倒。 */
+@media (max-width: 1180px) {
+  .live-cmp { grid-template-columns: minmax(0, .8fr) minmax(0, 1.25fr); }
+  .live-rail { grid-column: 1 / -1; position: static; max-height: none; }
+  .live-rail .live-facts { grid-template-columns: repeat(auto-fill, minmax(240px, 1fr)); }
+}
+@media (max-width: 820px) {
+  .live-cmp { grid-template-columns: 1fr; }
+  .live-rewrite-h { flex-direction: column; gap: 12px; position: static; }
+  .live-rail .live-facts { grid-template-columns: 1fr; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .live-cmp .sheet .sg.born { animation: none; }
+}
