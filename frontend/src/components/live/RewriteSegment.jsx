@@ -2,45 +2,50 @@ import { useCallback } from 'react';
 import { useUi } from '../../hooks/useUi.jsx';
 
 /* ============================================================
-   成稿里的一段，以及它的出处染色。
+   成稿里的一段：正文 + 它的出处。
 
    为什么不复用 `common/Segment.jsx`：那一个吃的是剧本假数据的形状
-   （`{t, o, ref, turn, hs}`，并且直接 import `data/demo.js` 里的 `TURN_BY_ID`
-   与 `HARVEST` 去反查），后端的 `SegmentView` 是另一套形状。让一个组件同时吃
-   两种形状，等于把剧本 demo 和真链路焊在一起——正是 issue #22 明确要避免的。
-   复用的是**样式**（`.sg` 那套三色出处的 CSS）和**交互语言**（同一个 popover），
-   不是组件本身，`live/QuestionCard.jsx` 与 `workbench/GrillPanel.jsx` 也是这么分的。
+   （`{t, o, ref, turn, hs}`，并且直接 import `data/demo.js` 去反查），后端的
+   `SegmentView` 是另一套形状。让一个组件同时吃两种形状，等于把剧本 demo 和
+   真链路焊在一起——正是 issue #22 明确要避免的。复用的是**样式**（`.sg` 那套
+   三色出处）和**交互语言**（同一个 popover），不是组件本身。
 
    染色规则直接读后端的 `source`：
-     - `original`  原简历本来就有 → 不染色，普通正文
-     - `turn:<id>` 拷问某一轮挖出来的 → 金色（`.sg.grill`）
+     - `original`  原简历本来就有 → 不染色
+     - `turn:<id>` 拷问某一轮挖出来的 → 金色（`.sg.grill`），沟槽里标轮号
      - `crumb:<id>` 某份料里读到的 → 蓝色（`.sg.source`）
-   三色语义是设计系统的硬约束（design-system.css 里点明过），这里不另发明颜色。
+   三色语义是设计系统的硬约束，这里不另发明颜色。
 
-   hover 卡片的内容全部来自后端随段落一起下发的 `round / question_text /
-   answer_text`——前端不再去账本里反查。反查要前端自己维护「fact_id → 事实」
-   的索引，而那份索引在改稿推进版本之后极容易和成稿对不上。
+   沟槽里的轮号是**结构即信息**：它不是装饰性的序号，是这一段的出处本身——
+   「第 3 问挖出来的」。原简历本来就有的段落沟槽只有一个破折号。
+
+   两条 hover 通道：
+     - popover 显示当轮的问与答（内容随段落从后端下发，不反查账本）
+     - `onAim(fact_ids)` 让右侧账本里对应的事实亮起来——出处不只是一张
+       卡片，是成稿和账本之间看得见的那条线
    ============================================================ */
 
 const SOURCE_ORIGINAL = 'original';
 const TURN_PREFIX = 'turn:';
 export const CRUMB_PREFIX = 'crumb:';
 
-export default function RewriteSegment({ segment, crumbName }) {
+export default function RewriteSegment({
+  segment, crumbName, lit, onAim, born, delay,
+}) {
   const ui = useUi();
+  const grilled = segment.source.startsWith(TURN_PREFIX);
+  const fromCrumb = segment.source.startsWith(CRUMB_PREFIX);
 
   const handleEnter = useCallback((event) => {
     const node = event.currentTarget;
-    if (segment.source.startsWith(TURN_PREFIX)) {
+    onAim(segment.fact_ids);
+    if (grilled) {
       ui.showPop({
         kind: 'grill',
         title: segment.round
-          ? `🔥 第 ${segment.round} 问 · 你的原话`
-          : '🔥 拷问挖到的 · 你的原话',
-        /* 问和答都给：光有答案，用户想不起来当时被问的是什么。
-
-           传节点而不是带 \n 的字符串：`#pop` 没有 `white-space: pre-line`，
-           换行会被折掉，问和答糊成一行。 */
+          ? `第 ${segment.round} 问 · 你的原话`
+          : '拷问挖到的 · 你的原话',
+        /* 传节点而不是带 \n 的字符串：`#pop` 没有 `white-space: pre-line`。 */
         body: (
           <>
             {segment.question_text && (
@@ -57,33 +62,52 @@ export default function RewriteSegment({ segment, crumbName }) {
       }, node);
       return;
     }
-    if (segment.source.startsWith(CRUMB_PREFIX)) {
+    if (fromCrumb) {
       ui.showPop({
         kind: 'source',
-        title: `📄 来自你的料 · ${crumbName || segment.source.slice(CRUMB_PREFIX.length)}`,
+        title: `来自你的料 · ${crumbName || segment.source.slice(CRUMB_PREFIX.length)}`,
         body: '这句话是从你上传的材料里读到的，不是拷问问出来的。',
       }, node);
     }
-  }, [segment, crumbName, ui]);
+  }, [segment, crumbName, ui, onAim, grilled, fromCrumb]);
+
+  const handleLeave = useCallback(() => {
+    onAim(null);
+    ui.hidePop();
+  }, [onAim, ui]);
 
   if (segment.source === SOURCE_ORIGINAL) {
     /* 原简历本来就有的话不加任何标记：染色是用来指认「新挖出来的」的，
        满屏都染等于什么都没指认。 */
-    return <span>{segment.text}</span>;
+    return (
+      <div className="bul">
+        <span className="bd">—</span>
+        <span className="tx">{segment.text}</span>
+      </div>
+    );
   }
 
-  const grilled = segment.source.startsWith(TURN_PREFIX);
   return (
-    <span
-      className={grilled ? 'sg grill' : 'sg source'}
-      onMouseEnter={handleEnter}
-      onMouseLeave={ui.hidePop}
-      onFocus={handleEnter}
-      onBlur={ui.hidePop}
-      tabIndex={0}
-      role="note"
-    >
-      {segment.text}
-    </span>
+    <div className={`bul${grilled ? ' gold' : ' src'}${lit ? ' lit' : ''}`}>
+      <span className="bd">
+        {grilled && segment.round ? <i className="rd num">{segment.round}</i> : '—'}
+      </span>
+      {/* 高亮只裹着字，不铺满整行：这是记号笔的语义——「这几个字是挖出来的」，
+          不是一块色板。所以 .sg 留在行内，撑满一行的是外面这层 .tx。 */}
+      <span className="tx">
+        <span
+          className={`sg ${grilled ? 'grill' : 'source'}${born ? ' born' : ''}`}
+          style={born ? { animationDelay: `${delay}ms` } : undefined}
+          onMouseEnter={handleEnter}
+          onMouseLeave={handleLeave}
+          onFocus={handleEnter}
+          onBlur={handleLeave}
+          tabIndex={0}
+          role="note"
+        >
+          {segment.text}
+        </span>
+      </span>
+    </div>
   );
 }

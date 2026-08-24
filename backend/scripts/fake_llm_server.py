@@ -121,7 +121,10 @@ def _rewrite_card(prompt: str, instruction: bool) -> Dict[str, Any]:
         }
 
     # 要求编造的指令一律拒绝——这条是产品红线在联调里的可见出口。
-    if instruction and re.search(r"实习|加一段|编|写成|夸大", prompt.split("## 用户的改稿指令")[-1]):
+    # 只读用户那一句，不读它后面的提醒文案——提醒里有「编造」两个字，按整段
+    # 匹配的话每条指令都会被拒，而 smoke 之前恰好没验「正常指令不被拒」。
+    said = re.search(r"## 用户的改稿指令\n\n(.*?)\n\n", prompt, re.DOTALL)
+    if instruction and said and re.search(r"实习|加一段|编|写成|夸大", said.group(1)):
         return {
             "segments": [],
             "refusal": "你让我写一段这场拷问里没有任何事实支撑的经历。编出来的那句话面试时要你自己扛，我不写。",
