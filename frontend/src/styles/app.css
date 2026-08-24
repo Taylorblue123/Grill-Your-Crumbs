@@ -74,3 +74,346 @@ textarea.cp-in::placeholder { color: var(--fg-mute); }
   font-style: normal;
 }
 @media (max-width: 900px) { .bstate span { display: none; } }
+
+/* ════════════════════════════════════════════════════════════
+   Live · 真实拷问链路（#screen=live）
+
+   这一屏复用 design-system.css 的既有组件（.qcard / .why / .cr / .btn /
+   .acts），下面只补它没有的那几块：定靶表单、料的勾选态、开场等待。
+   只用语义变量，三套皮肤和深浅色自动跟上。
+   ════════════════════════════════════════════════════════════ */
+
+.live-wrap { padding-top: 34px; padding-bottom: 60px; max-width: 760px; }
+
+.live-h1 {
+  font-family: var(--display);
+  font-size: 27px;
+  font-weight: var(--h-weight);
+  letter-spacing: var(--h-track);
+  line-height: 1.36;
+  margin-top: 12px;
+}
+.live-h1 em { font-style: normal; color: var(--gold); }
+
+.live-lede {
+  color: var(--fg-dim);
+  font-size: 14.5px;
+  line-height: 1.75;
+  margin-top: 10px;
+}
+.live-lede b { color: var(--fg); font-weight: 640; }
+
+.live-block { margin-top: 30px; }
+.live-block h3 {
+  font-family: var(--display);
+  font-size: 16.5px;
+  font-weight: var(--h-weight);
+  letter-spacing: -.2px;
+}
+.live-sub {
+  color: var(--fg-mute);
+  font-size: 12.5px;
+  line-height: 1.6;
+  margin: 5px 0 12px;
+}
+.live-sub b { color: var(--fg-dim); font-weight: 640; }
+
+/* ── 料的勾选：整行是按钮，剔除的一行整体压暗 ── */
+.live-crumbs { display: grid; gap: 7px; margin-top: 10px; }
+.live-cr {
+  width: 100%;
+  text-align: left;
+  font: inherit;
+  cursor: pointer;
+  opacity: .5;
+  transition: opacity .13s, border-color .13s;
+}
+.live-cr.on { opacity: 1; }
+.live-cr.on .ic { background: var(--gold-bg); color: var(--gold-ink); }
+.live-cr .nm, .live-cr .tx { display: block; }
+.live-kind {
+  flex: none;
+  align-self: flex-start;
+  font-size: 10.5px;
+  letter-spacing: .4px;
+  color: var(--fg-mute);
+  border: 1px solid var(--line);
+  border-radius: var(--r2);
+  padding: 1px 7px;
+}
+
+.live-empty, .live-warn {
+  border-radius: var(--r3);
+  padding: 12px 14px;
+  font-size: 12.5px;
+  line-height: 1.65;
+  margin-top: 10px;
+}
+.live-empty {
+  border: 1px dashed var(--line-hard);
+  color: var(--fg-mute);
+}
+.live-warn {
+  border: 1px solid var(--gold-bd);
+  background: var(--gold-bg);
+  color: var(--gold-ink);
+}
+
+/* ── JD 粘贴框 ── */
+.live-jd {
+  width: 100%;
+  resize: vertical;
+  font: inherit;
+  font-size: 13.3px;
+  line-height: 1.7;
+  color: var(--fg);
+  background: var(--card);
+  border: 1px solid var(--line-hard);
+  border-radius: var(--r3);
+  padding: 13px 15px;
+}
+.live-jd:focus { outline: none; border-color: var(--blue); background: var(--card); }
+.live-jd::placeholder { color: var(--fg-mute); }
+
+/* ── 开场按钮与门槛说明 ── */
+.live-go { display: flex; align-items: center; gap: 14px; flex-wrap: wrap; margin-top: 24px; }
+.live-go .btn[disabled] { opacity: .42; cursor: not-allowed; filter: none; transform: none; }
+.live-gate { font-size: 11.5px; color: var(--fg-mute); }
+
+/* ── 等待：讲「正在做什么」，不假装知道还剩多久 ── */
+.live-loading {
+  display: flex;
+  align-items: center;
+  gap: 13px;
+  margin-top: 24px;
+  padding: 15px 17px;
+  border: 1px solid var(--line-hard);
+  border-radius: var(--r3);
+  background: var(--card);
+}
+.live-loading b { display: block; font-size: 13.5px; font-weight: 620; }
+.live-loading small { display: block; font-size: 11.5px; color: var(--fg-mute); margin-top: 3px; }
+.live-spin {
+  width: 17px;
+  height: 17px;
+  flex: none;
+  border-radius: 50%;
+  border: 2px solid var(--line-hard);
+  border-top-color: var(--gold);
+  animation: live-spin .8s linear infinite;
+}
+@keyframes live-spin { to { transform: rotate(360deg); } }
+@media (prefers-reduced-motion: reduce) {
+  .live-spin { animation-duration: 2.4s; }
+}
+
+/* ── 后端明确拒绝时的提示：绝不静默失败 ── */
+.live-err {
+  margin-top: 20px;
+  border: 1px solid var(--red-bd);
+  background: var(--red-bg);
+  color: var(--red-ink);
+  border-radius: var(--r3);
+  padding: 12px 15px;
+  font-size: 12.8px;
+  line-height: 1.65;
+}
+.live-err b { display: block; font-weight: 700; margin-bottom: 3px; }
+
+/* ── 首题：底稿回显 + 选项 ── */
+.live-baseline {
+  margin: 4px 0 16px;
+  border-left: 3px solid var(--blue);
+  background: var(--blue-bg);
+  color: var(--blue-ink);
+  border-radius: var(--r2);
+  padding: 10px 13px;
+  font-size: 13px;
+  font-weight: 620;
+}
+.live-baseline .h6 {
+  display: block;
+  font-size: 9.5px;
+  letter-spacing: 1.2px;
+  font-weight: 800;
+  margin-bottom: 3px;
+  opacity: .8;
+}
+.live-baseline small {
+  display: block;
+  font-weight: 500;
+  font-size: 11.5px;
+  margin-top: 4px;
+  opacity: .85;
+}
+
+.live-opts { display: grid; gap: 6px; }
+/* 选项是按钮：点一下把那句话填进作答框（不是提交），所以要有可点的手感。 */
+.live-opt {
+  display: flex;
+  align-items: flex-start;
+  gap: 9px;
+  width: 100%;
+  border: 1px solid var(--line-hard);
+  border-radius: var(--r3);
+  padding: 9px 12px;
+  font-size: 13px;
+  line-height: 1.6;
+  color: var(--fg-dim);
+  background: transparent;
+  font-family: inherit;
+  text-align: left;
+  cursor: pointer;
+  transition: border-color .12s, background .12s;
+}
+.live-opt:hover:not(:disabled) { border-color: var(--gold-bd); background: var(--sunk); }
+.live-opt:disabled { cursor: default; opacity: .55; }
+/* .on = 用户点过的那个。和 .pick（模型推荐）分开：推荐是它的猜测，
+   选中是用户的动作，两件事不能共用一个视觉。 */
+.live-opt.on { border-color: var(--gold); box-shadow: inset 0 0 0 1px var(--gold); }
+.live-opt.pick {
+  border-color: var(--gold-bd);
+  background: var(--gold-bg);
+  color: var(--gold-ink);
+}
+.live-opt .k {
+  flex: none;
+  width: 18px;
+  height: 18px;
+  display: grid;
+  place-items: center;
+  border-radius: var(--r2);
+  background: var(--sunk2);
+  color: var(--fg-mute);
+  font-size: 10px;
+  font-weight: 700;
+  margin-top: 1px;
+}
+.live-opt.pick .k { background: var(--gold); color: var(--on-gold); }
+.live-opt .t { flex: 1; min-width: 0; }
+.live-opt .tag {
+  flex: none;
+  font-size: 10px;
+  letter-spacing: .3px;
+  font-weight: 700;
+  color: var(--gold-ink);
+  align-self: center;
+}
+
+.live-acts { padding: 14px 0 0; }
+.live-note {
+  margin-top: 18px;
+  font-size: 11.5px;
+  color: var(--fg-mute);
+  line-height: 1.7;
+}
+.live-note code {
+  font-family: var(--mono);
+  font-size: 10.5px;
+  background: var(--sunk);
+  border-radius: var(--r2);
+  padding: 1px 5px;
+}
+
+/* --- 作答框 --------------------------------------------------------------- */
+
+.live-answer { margin-top: 14px; border-top: 1px solid var(--line); padding-top: 14px; }
+.live-ans-box {
+  width: 100%;
+  border: 1px solid var(--line-hard);
+  border-radius: var(--r3);
+  background: var(--sunk);
+  color: var(--fg);
+  font: inherit;
+  font-size: 13.5px;
+  line-height: 1.75;
+  padding: 11px 13px;
+  resize: vertical;
+}
+.live-ans-box:focus { outline: none; border-color: var(--gold); background: var(--card); }
+.live-ans-box:disabled { opacity: .6; }
+.live-ans-acts {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  flex-wrap: wrap;
+  margin-top: 10px;
+}
+
+/* --- 事实账本 ------------------------------------------------------------- */
+
+.live-ledger {
+  margin-top: 20px;
+  border: 1px solid var(--line);
+  border-radius: var(--r4);
+  background: var(--card);
+  padding: 14px 16px 16px;
+}
+.live-ledger-h { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+.live-ledger-h .b {
+  min-width: 20px;
+  padding: 1px 7px;
+  border-radius: 999px;
+  background: var(--sunk2);
+  color: var(--fg-mute);
+  font-size: 11px;
+  font-weight: 700;
+  text-align: center;
+}
+.live-ledger-h .b.has { background: var(--gold); color: var(--on-gold); }
+.live-ledger-h small { flex: 1 1 100%; color: var(--fg-mute); font-size: 11.5px; }
+.live-ledger-empty {
+  color: var(--fg-mute);
+  font-size: 12.5px;
+  line-height: 1.8;
+  margin: 12px 0 2px;
+}
+.live-facts { display: grid; gap: 8px; margin-top: 12px; }
+.live-fact {
+  border: 1px solid var(--line);
+  border-left: 2px solid var(--gold-bd);
+  border-radius: var(--r3);
+  padding: 9px 12px;
+  background: var(--sunk);
+}
+/* 刚落账的那几条：用户按下提交后要立刻看见「+n 条」落在哪，
+   否则账本涨了他也不知道涨在哪一处。 */
+.live-fact.born {
+  border-left-color: var(--gold);
+  background: var(--gold-bg);
+  animation: live-born .5s ease-out;
+}
+@keyframes live-born {
+  from { opacity: 0; transform: translateY(-4px); }
+  to { opacity: 1; transform: none; }
+}
+.live-fact .tx { font-size: 13px; line-height: 1.7; color: var(--fg); }
+.live-fact .meta { margin-top: 4px; font-size: 10.5px; color: var(--fg-mute); }
+
+/* --- 收口 / 会话丢失 ------------------------------------------------------ */
+
+.live-closed {
+  border: 1px solid var(--gold-bd);
+  background: var(--gold-bg);
+  border-radius: var(--r4);
+  padding: 18px 20px;
+  margin-top: 4px;
+}
+.live-closed h3 { margin: 8px 0 6px; font-size: 19px; color: var(--gold-ink); }
+.live-closed p { margin: 0; font-size: 13px; line-height: 1.8; color: var(--fg-dim); }
+
+.live-gone {
+  border: 1px solid var(--line-hard);
+  background: var(--sunk);
+  border-radius: var(--r3);
+  padding: 11px 14px;
+  margin-bottom: 16px;
+  font-size: 12.5px;
+  line-height: 1.75;
+  color: var(--fg-dim);
+}
+.live-gone b { display: block; font-weight: 700; color: var(--fg); margin-bottom: 3px; }
+
+@media (prefers-reduced-motion: reduce) {
+  .live-fact.born { animation: none; }
+}
