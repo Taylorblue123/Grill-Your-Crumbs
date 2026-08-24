@@ -5,6 +5,7 @@
      GET    /api/v1/crumbs           列出当前用户的材料
      POST   /api/v1/attachments      上传附件 → 抽取文本 → 建 crumb
      DELETE /api/v1/crumbs/{id}      删除材料（连同落盘的原文件）
+     POST   /api/v1/grill/sessions   开场：JD + 选料 → 挖掘树 → 首题
 
    这一层只做「HTTP ↔ 前端形状」的翻译，不碰任何 UI 状态。
    后端不在时所有调用都抛错，由调用方降级成纯演示模式。
@@ -63,6 +64,27 @@ export async function deleteCrumb(id) {
   const response = await fetch(`${V1}/crumbs/${encodeURIComponent(id)}`, { method: 'DELETE' });
   if (response.status === 404) throw new Error('这条材料在后端已经不存在了。');
   if (!response.ok) throw new Error(await readError(response, `删除失败（HTTP ${response.status}）`));
+}
+
+/* 开场一场拷问：定靶（JD 原文）+ 选料 → 后端规划挖掘树并出首题。
+
+   后端连不上和后端拒绝是两回事，文案也不同：前者是「服务没起来」，
+   后者（400/422/502）是后端明确告诉你哪里不对，原样透出它的话。 */
+export async function startGrillSession(jdText, crumbIds) {
+  let response;
+  try {
+    response = await fetch(`${V1}/grill/sessions`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ jd_text: jdText, crumb_ids: crumbIds }),
+    });
+  } catch {
+    throw new Error('连不上后端。请按 backend/README.md 的命令启动服务后重试。');
+  }
+  if (!response.ok) {
+    throw new Error(await readError(response, `开场失败（HTTP ${response.status}）`));
+  }
+  return response.json();
 }
 
 /* 上传要进度条，fetch 给不了 upload progress，所以这里仍用 XHR。

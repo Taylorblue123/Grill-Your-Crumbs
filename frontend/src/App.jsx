@@ -5,6 +5,7 @@ import OppsScreen from './components/opps/OppsScreen.jsx';
 import SetupScreen from './components/setup/SetupScreen.jsx';
 import WorkbenchScreen from './components/workbench/WorkbenchScreen.jsx';
 import DoneScreen from './components/done/DoneScreen.jsx';
+import LiveScreen from './components/live/LiveScreen.jsx';
 import Toast from './components/common/Toast.jsx';
 import Popover from './components/common/Popover.jsx';
 import { useDispatch, useStore } from './store/StoreContext.jsx';
@@ -113,6 +114,9 @@ export default function App() {
         {state.screen === 'done' && (
           <DoneScreen jdBoardRef={jdBoardRef} scrollRef={doneScrollRef} />
         )}
+        {/* 真实链路。剧本 demo 的所有屏共用全局 store，这一屏只借它的材料列表，
+            拷问会话状态全在组件内部——两条路互不干扰。 */}
+        {state.screen === 'live' && <LiveScreen />}
       </div>
 
       <Popover />

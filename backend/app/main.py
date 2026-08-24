@@ -15,8 +15,16 @@ from .config import Settings
 from .database import Database
 from .extraction import ExtractionError, MEDIA_TYPES, extract_text, validate_extension
 from .github import GitHub, HttpGitHub
-from .llm import Llm, OpenAiLlm
-from .schemas import CrumbListResponse, CrumbView, HealthResponse, UploadResponse
+from .grill import GrillError, open_session, pick_baseline, question_view
+from .llm import Llm, LlmError, OpenAiLlm
+from .schemas import (
+    CrumbListResponse,
+    CrumbView,
+    GrillSessionRequest,
+    GrillSessionResponse,
+    HealthResponse,
+    UploadResponse,
+)
 from .sessions import GrillSessionStore
 
 
@@ -223,6 +231,66 @@ def create_app(
             upload_root = app_settings.upload_dir.resolve()
             if upload_root in storage_path.parents:
                 storage_path.unlink(missing_ok=True)
+
+    @app.post(
+        "/api/v1/grill/sessions",
+        response_model=GrillSessionResponse,
+        status_code=status.HTTP_201_CREATED,
+    )
+    def start_grill_session(
+        request: GrillSessionRequest, user_id: str = Depends(current_user_id)
+    ) -> GrillSessionResponse:
+        """开场：定靶（JD + 选料）→ 一次 LLM 调用规划挖掘树并出首题。
+
+        错误码分工：JD 空是**请求本身**不合法（400）；料的问题是内容层面不满足
+        前提（422）——选的料一份都不存在，或者选中的料里没有简历当底稿。
+        """
+        jd_text = request.jd_text.strip()
+        if not jd_text:
+            raise HTTPException(status_code=400, detail="JD 不能为空——拷问需要一个靶子。")
+
+        crumbs = database.list_crumbs_by_ids(user_id, request.crumb_ids)
+        if not crumbs:
+            raise HTTPException(status_code=422, detail="至少要选一份料才能开始拷问。")
+
+        baseline = pick_baseline(crumbs)
+        if baseline is None:
+            raise HTTPException(
+                status_code=422,
+                detail="进场的料里没有简历。拷问要拿一份简历当底稿，请先上传或勾选一份简历。",
+            )
+
+        try:
+            opening = open_session(
+                llm=app_llm,
+                jd_text=jd_text,
+                crumbs=crumbs,
+                baseline_crumb_id=baseline["id"],
+            )
+        except (LlmError, GrillError) as error:
+            # 规划无副作用，调用方可安全重发——502 就是这么约定的。
+            raise HTTPException(status_code=502, detail=str(error)) from error
+
+        question = question_view(opening["question"], opening["tree"])
+        session_id = sessions.create(
+            user_id=user_id,
+            jd_text=jd_text,
+            crumb_ids=[crumb["id"] for crumb in crumbs],
+            baseline_crumb_id=baseline["id"],
+            tree=opening["tree"],
+            question=question,
+            # 事实账本从空开始。ADR-0002 的不变量（事实写入必须带来源）由写事实
+            # 的那一片守住——本片一条事实都不写。
+            facts=[],
+            history=[],
+            created_at=utc_now(),
+        )
+
+        return GrillSessionResponse(
+            session_id=session_id,
+            baseline_crumb_id=baseline["id"],
+            question=question,
+        )
 
     # React 前端的静态资源。只在构建过之后挂载 —— 跑后端测试时 dist/ 不存在是正常的。
     frontend_assets = app_settings.frontend_dist / "assets"

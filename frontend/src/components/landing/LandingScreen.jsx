@@ -73,6 +73,9 @@ export default function LandingScreen({ onTour, tourRunning }) {
   const howRef = useRef(null);
 
   const goDash = () => dispatch({ type: 'go', screen: 'dash' });
+  /* 真实链路的独立入口。和「进入我的工作区」并列而不是藏在里面——
+     它要能证明「这不是录像」，就得自己有一个门。 */
+  const goLive = () => dispatch({ type: 'go', screen: 'live' });
   const scrollTo = (ref) => {
     if (scrollRef.current && ref.current) {
       scrollRef.current.scrollTo({ top: ref.current.offsetTop - 40, behavior: 'smooth' });
@@ -92,6 +95,7 @@ export default function LandingScreen({ onTour, tourRunning }) {
         <button type="button" className="btn ghost sm" onClick={onTour}>
           {tourRunning ? '停止演示 ❚❚' : '看一遍完整演示 ▶'}
         </button>
+        <button type="button" className="btn ghost sm" onClick={goLive}>真实拷问 ⚡</button>
         <button type="button" className="btn sm" onClick={goDash}>进入我的工作区</button>
       </TopBar>
 
@@ -120,10 +124,14 @@ export default function LandingScreen({ onTour, tourRunning }) {
                 <div className="hcta">
                   <button type="button" className="btn" onClick={goDash}>进入我的工作区 →</button>
                   <button type="button" className="btn ghost" onClick={onTour}>先看一遍完整演示</button>
+                  <button type="button" className="btn ghost" onClick={goLive}>
+                    真实拷问 ⚡
+                  </button>
                 </div>
                 <p className="hnote">
                   约 5 分钟 · 5～6 个问题 · 全程可撤回 · 无需注册
                   <code>demo 数据为虚构样例</code>
+                  <code>「真实拷问」走真模型，问题是现问的</code>
                 </p>
               </div>
 

@@ -115,6 +115,34 @@ class Database:
             ).fetchall()
             return [dict(row) for row in rows]
 
+    def list_crumbs_by_ids(self, user_id: str, crumb_ids: List[str]) -> List[Dict[str, Any]]:
+        """按 id 取这个用户的料。不存在或不属于该用户的 id 静默缺席——
+        调用方比对数量差就知道哪些没取到，这里不替它决定那算不算错。
+
+        id 分批查：`IN (?, ?, …)` 占的是 SQLite 的变量额度，而这个上限在老一点
+        的构建上只有 999。请求体里的 id 数量是客户端说了算的，不该由它决定这条
+        查询会不会炸——分批之后多长的列表都只是多跑几次。
+        """
+        if not crumb_ids:
+            return []
+        # 留出余量给 user_id 那一个变量。
+        batch_size = 500
+        rows: List[Dict[str, Any]] = []
+        with self.connect() as connection:
+            for start in range(0, len(crumb_ids), batch_size):
+                batch = crumb_ids[start:start + batch_size]
+                placeholders = ",".join("?" for _ in batch)
+                rows.extend(
+                    dict(row)
+                    for row in connection.execute(
+                        f"SELECT * FROM crumb WHERE user_id = ? AND id IN ({placeholders})",
+                        (user_id, *batch),
+                    ).fetchall()
+                )
+        # 排序放在分批之后，否则每批各自有序、合起来无序。
+        rows.sort(key=lambda row: row.get("synced_at") or "", reverse=True)
+        return rows
+
     def delete_crumb(self, user_id: str, crumb_id: str) -> Optional[Dict[str, Any]]:
         with self.connect() as connection:
             row = connection.execute(
