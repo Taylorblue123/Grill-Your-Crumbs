@@ -281,18 +281,25 @@ export default function LiveScreen() {
       </TopBar>
 
       <div className="scroll">
-        <div className="lwrap live-wrap">
-          <span className="kick">LIVE · 真实链路</span>
-          <h2 className="live-h1">
-            这一屏没有剧本。
-            <em>问题是现问的。</em>
-          </h2>
-          <p className="live-lede">
-            贴一段目标岗位的 JD，勾掉不想让它看的料。它会先把你选的料读完，
-            对着 JD 找缺口，规划出「想挖的点」，然后问出第一个问题——
-            <b>料里已经写清楚的东西，它不会再问你一遍</b>
-            。
-          </p>
+        {/* 收口之后这一屏换一种身份：不再是「一次一题」的阅读栏，而是
+            左右对照的工作台，所以撑到全宽，定靶那套抬头也不再显示——
+            刚问完的人不需要再看一遍「贴一段 JD」。 */}
+        <div className={`lwrap live-wrap${phase === 'closed' ? ' wide' : ''}`}>
+          {phase !== 'closed' && (
+            <>
+              <span className="kick">LIVE · 真实链路</span>
+              <h2 className="live-h1">
+                这一屏没有剧本。
+                <em>问题是现问的。</em>
+              </h2>
+              <p className="live-lede">
+                贴一段目标岗位的 JD，勾掉不想让它看的料。它会先把你选的料读完，
+                对着 JD 找缺口，规划出「想挖的点」，然后问出第一个问题——
+                <b>料里已经写清楚的东西，它不会再问你一遍</b>
+                。
+              </p>
+            </>
+          )}
 
           {phase === 'restoring' ? (
             <div className="live-loading" aria-live="polite">
@@ -306,11 +313,13 @@ export default function LiveScreen() {
 
           {(phase === 'asking' || phase === 'closed') && session ? (
             <>
-              <div className="live-baseline">
-                <span className="h6">本场底稿</span>
-                {baselineName || session.baseline_crumb_id}
-                <small>新简历会拿它当对比基准——多份简历时取最新的那一份。</small>
-              </div>
+              {phase === 'asking' && (
+                <div className="live-baseline">
+                  <span className="h6">本场底稿</span>
+                  {baselineName || session.baseline_crumb_id}
+                  <small>新简历会拿它当对比基准——多份简历时取最新的那一份。</small>
+                </div>
+              )}
 
               {phase === 'asking' && session.question && (
                 <QuestionCard
@@ -327,24 +336,30 @@ export default function LiveScreen() {
                 <RewriteView
                   sessionId={session.session_id}
                   crumbs={crumbs}
+                  facts={facts}
+                  baselineName={baselineName || session.baseline_crumb_id}
                   closedBy={session.closed_by}
                   answered={answered}
-                  factCount={facts.length}
+                  onRestart={restart}
                 />
               )}
 
-              <FactLedger facts={facts} freshIds={freshIds} />
+              {/* 账本和动作条只在作答阶段显示：收口后账本搬进了成稿对比的
+                  出处边栏，「重开一场」搬进了它的工具条——同一个东西不画两遍。 */}
+              {phase === 'asking' && (
+                <>
+                  <FactLedger facts={facts} freshIds={freshIds} />
 
-              <div className="acts live-acts">
-                {phase === 'asking' && (
-                  /* 「够了，去改写」任何时刻可用，包括第一题还没答的时候。
-                     拷问是用户的工具，不是关卡——不给出口的产品会让人不敢开始。 */
-                  <button type="button" className="act" onClick={stopEarly} disabled={answering}>
-                    够了，去改写 →
-                  </button>
-                )}
-                <button type="button" className="act" onClick={restart}>换个 JD 重开一场</button>
-              </div>
+                  <div className="acts live-acts">
+                    {/* 「够了，去改写」任何时刻可用，包括第一题还没答的时候。
+                        拷问是用户的工具，不是关卡——不给出口的产品会让人不敢开始。 */}
+                    <button type="button" className="act" onClick={stopEarly} disabled={answering}>
+                      够了，去改写 →
+                    </button>
+                    <button type="button" className="act" onClick={restart}>换个 JD 重开一场</button>
+                  </div>
+                </>
+              )}
 
               <p className="live-note">
                 这场拷问的账本存在后端的会话里，session_id 是
