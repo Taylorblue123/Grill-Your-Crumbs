@@ -19,7 +19,9 @@ than another proposed table.
 | `GET` | `/api/v1/crumbs` | list the current user's uploaded crumbs |
 | `POST` | `/api/v1/attachments` | multipart upload with `file` and optional `kind` |
 | `DELETE` | `/api/v1/crumbs/{id}` | delete the crumb and its stored original |
-| `POST` | `/api/v1/repos` | connect a public GitHub repo by URL → a `kind=repo` crumb |
+| `POST` | `/api/v1/repos` | connect repos → `kind=repo` crumbs: `{url}` (paste) or `{full_names}` (batch) |
+| `POST` | `/api/v1/github/token` | store a GitHub PAT for this user (verified before it is stored) |
+| `GET` | `/api/v1/github/repos` | list every repo the token can see, private ones included |
 | `GET` | `/` | serve the built single-file prototype |
 
 `kind` accepts `auto`, `resume`, `repo`, `notes`, `diary`, `social`, `linkedin`, or `manual`.
@@ -32,14 +34,26 @@ provenance record silently.
 
 ## Connecting a public repo
 
-`POST /api/v1/repos` takes `{url}` — any shape a user might paste (`https://github.com/owner/name`,
-with `.git`, with a `/tree/main/...` subpath, `git@github.com:owner/name.git`, or bare
-`owner/name`). The adapter fetches repo metadata, the README, the 15 most recent commit messages,
-and the top-level file tree, then assembles them into one summary text that becomes
-`crumb.content`, exactly like extracted attachment text.
+`POST /api/v1/repos` takes exactly one of two inputs:
 
-Only public repos: no token is required, and none is sent. Private-repo listing needs a PAT and
-belongs to a later slice.
+- `{url}` — any shape a user might paste (`https://github.com/owner/name`, with `.git`, with a
+  `/tree/main/...` subpath, `git@github.com:owner/name.git`, or bare `owner/name`).
+- `{full_names: [...]}` — a batch, normally the repos ticked in the picker. Capped at 20 per call;
+  anything past the cap gets its own `ok: false` entry (`error_kind: "overflow"`) rather than being
+  dropped silently. Fetches run concurrently, bounded by the same `MAX_CONCURRENCY = 5` the adapter
+  uses within a single repo; the database writes that follow stay sequential, and results come back
+  in the order they were requested rather than the order they finished.
+
+Giving both, or neither, is a `400`: the request itself is malformed, and there is no per-item key
+to hang an envelope entry on.
+
+Either way the adapter fetches repo metadata, the README, the 15 most recent commit messages, and
+the top-level file tree, then assembles them into one summary text that becomes `crumb.content`,
+exactly like extracted attachment text.
+
+**No token needed for public repos**, and none is sent if none is connected. If the user *has*
+connected a PAT, both entry points use it — so pasting a private repo's URL works too. Requiring a
+separate entry point for private repos would be arbitrary: the user already authorized us.
 
 Two shape decisions worth knowing before you call it:
 
@@ -54,10 +68,51 @@ Two shape decisions worth knowing before you call it:
   repo into several crumbs. A repo's identity is its `full_name`, so the crumb is replaced by
   `(kind='repo', display_name=full_name)` and the response sets `updated: true`.
 
-Fetch failures carry the reason in `error`: a missing-or-private repo, GitHub's rate limit (60
-requests/hour unauthenticated), or a network failure. The frontend pairs that message with a way
-out — upload the repo's README as a file instead, which the existing attachment endpoint already
-accepts.
+Fetch failures carry the reason in `error` and the *kind* in `error_kind` (`not_found`,
+`unauthorized`, `rate_limit`, `fetch_failed`, `empty`, `bad_name`). The kind has to survive because
+the envelope ate the status code: in a batch, "rate-limited, try later" and "no such repo, retrying
+won't help" are different dispositions. The frontend pairs the message with a way out — upload the
+repo's README as a file instead, which the existing attachment endpoint already accepts — but only
+for the kinds where that is genuinely a way out (an empty repo has no README to upload).
+
+## Connecting GitHub with a PAT
+
+Three endpoints, one chain: paste a token → look at the list → tick some and pull.
+
+`POST /api/v1/github/token` takes `{token}` and **verifies it against GitHub before storing it** —
+otherwise a mistyped token surfaces one step later, as "couldn't fetch your repo list", which points
+at the wrong thing. It responds `{connected, login}` and **never echoes the token back**, not even
+the last four characters. An empty string means disconnect, and that path does not call GitHub —
+disconnecting does not need GitHub's agreement.
+
+`GET /api/v1/github/repos` returns `{repos: [{full_name, private, description, pushed_at}],
+truncated}`, most recently pushed first, capped at 300 rows (the adapter itself stops after 10 pages
+of 100). The listing asks for `affiliation=owner,collaborator`: the default also includes
+`organization_member`, which for anyone at a large company buries the picker under hundreds of repos
+they had no hand in. Org repos the user can see but doesn't own are therefore absent from the list —
+not a dead end, since pasting the URL still connects them, private ones included. With no token stored this is a `401`, not an empty list: "you have no repos" and "you
+haven't connected GitHub" send the user in completely different directions. A token that GitHub
+rejects here is dropped on the spot, since every later call would hit the same wall.
+
+### The token never lands anywhere
+
+The PAT lives only in `backend/app/tokens.py`'s `TokenStore` — a plain in-memory dict, keyed by
+user, with no mirror, no SQLite table, and a `__repr__` that reports a count rather than contents.
+"Never persisted" is a property of the type, not a rule callers have to remember. Restarting the
+process drops every token, which is deliberate: sessions are in-memory too, and a credential that
+outlives its session is just one more thing to clean up.
+
+The session mirror (`data/grill-sessions.json`) is the second line of defense, for the other leak
+path: a user pasting a PAT into an answer box. `sessions.scrub_secrets` strips secret-named fields
+and redacts token-shaped strings from free text on every dump.
+
+`backend/tests/test_github_pat_api.py::test_the_token_never_reaches_the_mirror_or_the_database`
+drives the whole chain and then greps every byte under `data/` — the whole directory, not just the
+files we expect to be written, because the point of a redline is to catch the write path nobody
+thought of.
+
+PAT is a step, not the destination: OAuth device flow replaces only how the token is obtained
+(see `TODOS.md`). These three endpoint shapes are designed to survive that swap unchanged.
 
 ## Boundaries and production adapters
 

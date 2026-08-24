@@ -2,6 +2,7 @@ import { useCallback, useEffect, useMemo, useState } from 'react';
 import TopBar from '../shell/TopBar.jsx';
 import UploadBox from '../setup/UploadBox.jsx';
 import RepoBox from '../setup/RepoBox.jsx';
+import GitHubBox from '../setup/GitHubBox.jsx';
 import QuestionCard from './QuestionCard.jsx';
 import FactLedger from './FactLedger.jsx';
 import RewriteView from './RewriteView.jsx';
@@ -409,6 +410,7 @@ export default function LiveScreen() {
 
                 <UploadBox />
                 <RepoBox />
+                <GitHubBox />
 
                 {crumbs.length === 0 ? (
                   <div className="live-empty">

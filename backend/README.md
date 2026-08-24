@@ -109,9 +109,13 @@ listed in `.env.example`. The local demo uses one fixed user id; production must
 cd frontend && npm run build && cd ..
 .venv/bin/python -m uvicorn backend.scripts.fake_llm_server:app --port 8000
 node frontend/smoke-live.mjs http://127.0.0.1:8000
+node frontend/smoke-github.mjs http://127.0.0.1:8000   # PAT 三件套
 ```
 
-`backend/scripts/fake_llm_server.py` 只把 LLM 换成按剧本发牌的假件，其余全真。
+`backend/scripts/fake_llm_server.py` 把 LLM 和 GitHub 换成按剧本发牌的假件，其余全真。
+GitHub 剧本（`ScriptedGitHub`）里留了两个**故意会失败**的仓库——`me/rate-limited`
+撞限流、`me/empty-shell` 是空仓——因为「部分成功部分失败」正是批量拉取要验的那件事，
+全都成功的剧本验不出逐项包络到底有没有用。联调时任意 `ghp_` 开头的串都当作有效 token。
 
 ## Tests
 

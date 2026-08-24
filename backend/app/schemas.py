@@ -202,14 +202,62 @@ class RewriteHistoryResponse(BaseModel):
 # --- 仓库料 -----------------------------------------------------------------
 
 
+class GitHubTokenRequest(BaseModel):
+    """贴一个 GitHub Personal Access Token。
+
+    PAT 是**台阶不是终点**：产品形态是 OAuth device flow（见 TODOS.md）。升级
+    时只换 token 的获取方式，这个请求体连同下游两个端点（列表、批量拉取）都不
+    变——所以这里叫 `token` 而不是 `pat`，device flow 拿到的也是一个 token。
+
+    空串是合法的：那是「断开连接」，等同于把已存的 token 清掉。
+    """
+
+    token: str
+
+
+class GitHubTokenResponse(BaseModel):
+    """token 存了之后回什么。
+
+    **绝不回显 token**，连尾四位都不回：前端已经知道用户刚贴了什么，回显只是
+    多制造一条走漏路径。回的是「连上了没有」和这个 token 属于谁——后者是用户
+    确认「我贴的是对的那个账号」的唯一依据。
+    """
+
+    connected: bool
+    login: Optional[str] = None
+
+
+class GitHubRepoView(BaseModel):
+    """挑选界面里的一行仓库。"""
+
+    full_name: str
+    private: bool
+    description: str = ""
+    pushed_at: str = ""
+
+
+class GitHubRepoListResponse(BaseModel):
+    repos: List[GitHubRepoView]
+    # 翻到页数上限时为 True。静默截断会让用户以为「我的仓库就这些」，
+    # 然后去找一个明明存在却没出现在列表里的仓库。
+    truncated: bool = False
+
+
 class RepoConnectRequest(BaseModel):
-    """连一个公开仓库。
+    """连仓库：贴一个 URL，或勾选一批 `full_name`。
 
     `url` 而不是 `full_name`：用户手上有的是浏览器地址栏里那一串，让他自己
     切成 owner/name 是把解析工作外包给用户。
+
+    `full_names` 是批量入口（勾选列表里的多个仓库）。两者共用一个端点而不是
+    各开一个，因为它们之后的每一步——拉取、建摘要、upsert、逐项包络——完全相同；
+    分成两个端点只会让同一段逻辑有两个入口，日后改 upsert 规则得记住改两处。
+
+    恰好给一个：两个都给或都不给都是 400（请求本身不合法，不是某一项失败）。
     """
 
-    url: str
+    url: Optional[str] = None
+    full_names: Optional[List[str]] = None
 
 
 class RepoResult(BaseModel):
@@ -232,11 +280,17 @@ class RepoResult(BaseModel):
     # 所以四种失败的区分必须在这里活下来，否则调用方只剩一个字符串可看：
     # 批量连仓时分不出「限流了，等会儿重试」和「这个仓不存在，重试也没用」，
     # 前端也分不出该不该给「把 README 当文件上传」的兜底指引。
-    #   not_found  仓库不存在或不可见（私有）
+    #   not_found  仓库不存在或不可见（没连 token 时，私有仓也走这一种）
+    #   unauthorized token 无效或过期——用户重贴一个就能修，和别的失败都不同
     #   rate_limit GitHub 限流，等一会儿能好
     #   fetch_failed 拉取失败（网络、GitHub 5xx、响应解析不了）
     #   empty      仓库拉到了但没有可拷问的内容
-    #   conflict   摘要和已有的另一份料内容相同
+    #   bad_name   勾选/传进来的 full_name 形状不对（批量入口才会出现）
+    #   overflow   超出单次批量上限，这一项没连（分批再勾一次就行）
+    #
+    # 曾经有过一种 `conflict`（摘要和已有的另一份料撞了），但那条路最后决定
+    # 交回已有的那份、按成功处理（见 connect_one_repo 的 IntegrityError 分支），
+    # 所以它从来没被发出去过，这里也就不留了。
     error_kind: Optional[str] = None
 
 

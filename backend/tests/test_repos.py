@@ -10,6 +10,8 @@ import pytest
 from backend.app.repos import (
     COMMIT_LIMIT,
     README_LIMIT,
+    normalize_full_name,
+    repo_listing,
     RepoUrlError,
     build_repo_summary,
     commit_messages,
@@ -138,3 +140,66 @@ def test_tree_paths_marks_directories() -> None:
 
     assert tree_paths(payload) == ["README.md", "app/"]
     assert tree_paths(None) == []
+
+
+# --- 批量入口的输入校验 ------------------------------------------------------
+
+
+def test_normalize_full_name_accepts_the_shape_the_listing_hands_back() -> None:
+    assert normalize_full_name("me/second-hand") == "me/second-hand"
+    assert normalize_full_name("  me/second-hand  ") == "me/second-hand"
+    assert normalize_full_name("me/second-hand/") == "me/second-hand"
+
+
+@pytest.mark.parametrize(
+    "bad",
+    [
+        "",
+        "只有一段",
+        "a/b/c",
+        "me/repo?x=1",
+        # URL 形态在这里是**不接受**的：批量入口的输入来自我们自己刚发出去的
+        # 列表，接受 URL 等于悄悄多承诺一种没测过的输入。
+        "https://github.com/me/second-hand",
+    ],
+)
+def test_normalize_full_name_rejects_anything_else(bad: str) -> None:
+    with pytest.raises(RepoUrlError):
+        normalize_full_name(bad)
+
+
+# --- 仓库列表 ---------------------------------------------------------------
+
+
+def test_repo_listing_keeps_only_the_four_fields_the_picker_needs() -> None:
+    payload = [
+        {
+            "full_name": "me/secret",
+            "private": True,
+            "description": "私有的",
+            "pushed_at": "2026-08-01T00:00:00Z",
+            "permissions": {"admin": True},
+        },
+        {"full_name": "me/open", "private": False, "description": None},
+        {"private": False},  # 没有 full_name 的条目丢掉：它没有主键
+        "不是对象",
+    ]
+
+    assert repo_listing(payload) == [
+        {
+            "full_name": "me/secret",
+            "private": True,
+            "description": "私有的",
+            "pushed_at": "2026-08-01T00:00:00Z",
+        },
+        {"full_name": "me/open", "private": False, "description": "", "pushed_at": ""},
+    ]
+    assert repo_listing(None) == []
+
+
+def test_repo_listing_defaults_private_to_true_when_the_field_is_missing() -> None:
+    """形状不对时把私有仓标成公开的，比反过来危险。
+
+    私有标记是用户判断「连这个仓库要不要紧」的唯一依据，标错的代价不对称。
+    """
+    assert repo_listing([{"full_name": "me/unknown"}])[0]["private"] is True
