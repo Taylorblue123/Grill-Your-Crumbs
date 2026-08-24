@@ -3,7 +3,7 @@ from datetime import datetime, timezone
 import hashlib
 from pathlib import Path
 import re
-from typing import Any, Dict, Optional
+from typing import Any, Dict, List, Optional
 from uuid import UUID, uuid4
 
 from fastapi import Depends, FastAPI, File, Form, Header, HTTPException, Response, UploadFile, status
@@ -11,6 +11,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import FileResponse
 from fastapi.staticfiles import StaticFiles
 
+from .answer import run_turn
 from .config import Settings
 from .database import Database
 from .extraction import ExtractionError, MEDIA_TYPES, extract_text, validate_extension
@@ -20,8 +21,12 @@ from .llm import Llm, LlmError, OpenAiLlm
 from .schemas import (
     CrumbListResponse,
     CrumbView,
+    FactView,
+    GrillAnswerRequest,
+    GrillAnswerResponse,
     GrillSessionRequest,
     GrillSessionResponse,
+    GrillSessionView,
     HealthResponse,
     UploadResponse,
 )
@@ -76,6 +81,34 @@ def make_crumb_view(row: Dict[str, Any], attachment: Optional[Dict[str, Any]] = 
         token_count=row["token_count"],
         synced_at=row["synced_at"],
         attachment=attachment_row,
+    )
+
+
+def fact_views(facts: List[Dict[str, Any]]) -> List[FactView]:
+    """账本条目 → 前端形状。`source` 留在服务端：它是给溯源校验用的原文片段，
+    对用户没有阅读价值，透出去只会让账本变吵。"""
+    return [
+        FactView(
+            id=fact["id"],
+            text=fact["text"],
+            turn_id=fact["turn_id"],
+            round=fact["round"],
+        )
+        for fact in facts
+    ]
+
+
+def session_projection(session_id: str, session: Dict[str, Any]) -> GrillSessionView:
+    """会话状态 → 全投影。刷新后前端只拿这一个响应就能重画现场。"""
+    return GrillSessionView(
+        session_id=session_id,
+        baseline_crumb_id=session["baseline_crumb_id"],
+        jd_text=session["jd_text"],
+        facts=fact_views(session["facts"]),
+        question=session.get("question"),
+        done=bool(session.get("done")),
+        closed_by=session.get("closed_by"),
+        answered_count=len(session.get("history") or []),
     )
 
 
@@ -283,6 +316,7 @@ def create_app(
             # 的那一片守住——本片一条事实都不写。
             facts=[],
             history=[],
+            done=False,
             created_at=utc_now(),
         )
 
@@ -290,6 +324,113 @@ def create_app(
             session_id=session_id,
             baseline_crumb_id=baseline["id"],
             question=question,
+        )
+
+    def load_session(session_id: str, user_id: str) -> Dict[str, Any]:
+        """取会话，顺手做归属检查。
+
+        别人的会话和不存在的会话给同一个 404：会话 id 是 uuid，但「猜不中」不是
+        访问控制，而 403 会把「这个 id 确实存在」告诉猜的人。
+        """
+        session = sessions.get(session_id)
+        if session is None or session.get("user_id") != user_id:
+            raise HTTPException(status_code=404, detail="这场拷问不在了。后端重启会丢掉进行中的会话。")
+        return session
+
+    @app.get("/api/v1/grill/sessions/{session_id}", response_model=GrillSessionView)
+    def get_grill_session(
+        session_id: str, user_id: str = Depends(current_user_id)
+    ) -> GrillSessionView:
+        """会话全投影，供刷新后重连现场。
+
+        会话活在内存里，后端重启即丢——那时这里 404，前端据此给「重开一场」提示。
+        """
+        return session_projection(session_id, load_session(session_id, user_id))
+
+    @app.post(
+        "/api/v1/grill/sessions/{session_id}/stop",
+        response_model=GrillSessionView,
+    )
+    def stop_grill_session(
+        session_id: str, user_id: str = Depends(current_user_id)
+    ) -> GrillSessionView:
+        """「够了，去改写」：用户中断这场拷问。
+
+        中断必须写进服务端，不能只在前端把屏幕切走：会话恢复读的是这个投影，
+        前端单方面「切到收口画面」的话，刷新一次就会把用户送回他刚走开的那道题。
+
+        已经收口的会话再点一次是幂等的——不报错，直接把当前投影交回去。
+        中断不删会话：账本要留给改写那一片用。
+        """
+        session = load_session(session_id, user_id)
+        if not session.get("done"):
+            # 当前那道题作废：用户不打算答了，留着它只会让恢复出来的现场自相矛盾。
+            session = sessions.update(
+                session_id, done=True, question=None, closed_by="stopped"
+            )
+        return session_projection(session_id, session)
+
+    @app.post(
+        "/api/v1/grill/sessions/{session_id}/answers",
+        response_model=GrillAnswerResponse,
+    )
+    def submit_grill_answer(
+        session_id: str,
+        request: GrillAnswerRequest,
+        user_id: str = Depends(current_user_id),
+    ) -> GrillAnswerResponse:
+        """作答一轮：一次 LLM 调用完成「抽事实入账本 + 更新树 + 出下一题或收口」。
+
+        两条不变量在这里守住：
+
+        **作答幂等**（见 issue #26）。`question_id` 必须等于当前那道题，否则 409 并把
+        当前状态一起交回去——重发、双标签页、后退键重提交都走这条，客户端拿 409
+        的 body 就能对齐现场，不必再拉一次 GET。409 在调 LLM 之前就返回，重复
+        作答不烧 token。
+
+        **失败原子性**（见 issue #26）。`run_turn` 是纯函数不碰会话仓，状态在它成功
+        返回之后一次性写入。所以 LLM 失败时会话一个字没变，同一答案可以安全重发，
+        也不会留下半轮的事实。
+        """
+        session = load_session(session_id, user_id)
+
+        current_question = session.get("question") or {}
+        if session.get("done") or request.question_id != current_question.get("id"):
+            raise HTTPException(
+                status_code=409,
+                detail=session_projection(session_id, session).model_dump(),
+            )
+
+        answer_text = request.answer_text.strip()
+        if not answer_text:
+            raise HTTPException(status_code=400, detail="答点什么再提交——空答案没有可挖的东西。")
+
+        try:
+            turn = run_turn(
+                llm=app_llm,
+                session=session,
+                answer_text=answer_text,
+                chosen_option=request.chosen_option,
+            )
+        except (LlmError, GrillError) as error:
+            raise HTTPException(status_code=502, detail=str(error)) from error
+
+        # 这里之后不再有失败点：一次 update 把整轮的产出写进去。
+        sessions.update(
+            session_id,
+            tree=turn["tree"],
+            facts=[*session["facts"], *turn["facts"]],
+            history=[*session["history"], turn["turn"]],
+            question=turn["question"],
+            done=turn["done"],
+            # 树问空了才是「问到底了」；用户叫停走 /stop，记 "stopped"。
+            closed_by="exhausted" if turn["done"] else None,
+        )
+
+        return GrillAnswerResponse(
+            facts=fact_views(turn["facts"]),
+            question=turn["question"],
+            done=turn["done"],
         )
 
     # React 前端的静态资源。只在构建过之后挂载 —— 跑后端测试时 dist/ 不存在是正常的。

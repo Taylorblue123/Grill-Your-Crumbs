@@ -248,17 +248,29 @@ textarea.cp-in::placeholder { color: var(--fg-mute); }
 }
 
 .live-opts { display: grid; gap: 6px; }
+/* 选项是按钮：点一下把那句话填进作答框（不是提交），所以要有可点的手感。 */
 .live-opt {
   display: flex;
   align-items: flex-start;
   gap: 9px;
+  width: 100%;
   border: 1px solid var(--line-hard);
   border-radius: var(--r3);
   padding: 9px 12px;
   font-size: 13px;
   line-height: 1.6;
   color: var(--fg-dim);
+  background: transparent;
+  font-family: inherit;
+  text-align: left;
+  cursor: pointer;
+  transition: border-color .12s, background .12s;
 }
+.live-opt:hover:not(:disabled) { border-color: var(--gold-bd); background: var(--sunk); }
+.live-opt:disabled { cursor: default; opacity: .55; }
+/* .on = 用户点过的那个。和 .pick（模型推荐）分开：推荐是它的猜测，
+   选中是用户的动作，两件事不能共用一个视觉。 */
+.live-opt.on { border-color: var(--gold); box-shadow: inset 0 0 0 1px var(--gold); }
 .live-opt.pick {
   border-color: var(--gold-bd);
   background: var(--gold-bg);
@@ -301,4 +313,107 @@ textarea.cp-in::placeholder { color: var(--fg-mute); }
   background: var(--sunk);
   border-radius: var(--r2);
   padding: 1px 5px;
+}
+
+/* --- 作答框 --------------------------------------------------------------- */
+
+.live-answer { margin-top: 14px; border-top: 1px solid var(--line); padding-top: 14px; }
+.live-ans-box {
+  width: 100%;
+  border: 1px solid var(--line-hard);
+  border-radius: var(--r3);
+  background: var(--sunk);
+  color: var(--fg);
+  font: inherit;
+  font-size: 13.5px;
+  line-height: 1.75;
+  padding: 11px 13px;
+  resize: vertical;
+}
+.live-ans-box:focus { outline: none; border-color: var(--gold); background: var(--card); }
+.live-ans-box:disabled { opacity: .6; }
+.live-ans-acts {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  flex-wrap: wrap;
+  margin-top: 10px;
+}
+
+/* --- 事实账本 ------------------------------------------------------------- */
+
+.live-ledger {
+  margin-top: 20px;
+  border: 1px solid var(--line);
+  border-radius: var(--r4);
+  background: var(--card);
+  padding: 14px 16px 16px;
+}
+.live-ledger-h { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+.live-ledger-h .b {
+  min-width: 20px;
+  padding: 1px 7px;
+  border-radius: 999px;
+  background: var(--sunk2);
+  color: var(--fg-mute);
+  font-size: 11px;
+  font-weight: 700;
+  text-align: center;
+}
+.live-ledger-h .b.has { background: var(--gold); color: var(--on-gold); }
+.live-ledger-h small { flex: 1 1 100%; color: var(--fg-mute); font-size: 11.5px; }
+.live-ledger-empty {
+  color: var(--fg-mute);
+  font-size: 12.5px;
+  line-height: 1.8;
+  margin: 12px 0 2px;
+}
+.live-facts { display: grid; gap: 8px; margin-top: 12px; }
+.live-fact {
+  border: 1px solid var(--line);
+  border-left: 2px solid var(--gold-bd);
+  border-radius: var(--r3);
+  padding: 9px 12px;
+  background: var(--sunk);
+}
+/* 刚落账的那几条：用户按下提交后要立刻看见「+n 条」落在哪，
+   否则账本涨了他也不知道涨在哪一处。 */
+.live-fact.born {
+  border-left-color: var(--gold);
+  background: var(--gold-bg);
+  animation: live-born .5s ease-out;
+}
+@keyframes live-born {
+  from { opacity: 0; transform: translateY(-4px); }
+  to { opacity: 1; transform: none; }
+}
+.live-fact .tx { font-size: 13px; line-height: 1.7; color: var(--fg); }
+.live-fact .meta { margin-top: 4px; font-size: 10.5px; color: var(--fg-mute); }
+
+/* --- 收口 / 会话丢失 ------------------------------------------------------ */
+
+.live-closed {
+  border: 1px solid var(--gold-bd);
+  background: var(--gold-bg);
+  border-radius: var(--r4);
+  padding: 18px 20px;
+  margin-top: 4px;
+}
+.live-closed h3 { margin: 8px 0 6px; font-size: 19px; color: var(--gold-ink); }
+.live-closed p { margin: 0; font-size: 13px; line-height: 1.8; color: var(--fg-dim); }
+
+.live-gone {
+  border: 1px solid var(--line-hard);
+  background: var(--sunk);
+  border-radius: var(--r3);
+  padding: 11px 14px;
+  margin-bottom: 16px;
+  font-size: 12.5px;
+  line-height: 1.75;
+  color: var(--fg-dim);
+}
+.live-gone b { display: block; font-weight: 700; color: var(--fg); margin-bottom: 3px; }
+
+@media (prefers-reduced-motion: reduce) {
+  .live-fact.born { animation: none; }
 }

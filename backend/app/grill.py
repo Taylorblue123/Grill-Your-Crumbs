@@ -140,10 +140,15 @@ def pick_baseline(crumbs: List[Dict[str, Any]]) -> Optional[Dict[str, Any]]:
     return max(resumes, key=lambda crumb: crumb.get("synced_at") or "")
 
 
-def _truncate(text: str, limit: int) -> str:
+def truncate(text: str, limit: int, notice: str = TRUNCATION_NOTICE) -> str:
+    """截断超长文本，并在截断处留明确标记。
+
+    标记不能省：模型看不出自己拿到的是残篇的话，会把截断处当成真的结尾，
+    于是「后面没写」被误判成真缺口。作答那一片截断用户的长答案，同理。
+    """
     if len(text) <= limit:
         return text
-    return text[:limit] + TRUNCATION_NOTICE
+    return text[:limit] + notice
 
 
 def build_opening_messages(
@@ -164,12 +169,12 @@ def build_opening_messages(
             f"### 料 {index}{role}\n"
             f"- 名称：{crumb.get('display_name') or '未命名'}\n"
             f"- 类型：{crumb.get('kind')}\n"
-            f"- 内容：\n{_truncate(crumb.get('content') or '', CRUMB_CHAR_LIMIT)}"
+            f"- 内容：\n{truncate(crumb.get('content') or '', CRUMB_CHAR_LIMIT)}"
         )
 
     user_content = (
         "## 目标岗位 JD（原文）\n\n"
-        f"{_truncate(jd_text, JD_CHAR_LIMIT)}\n\n"
+        f"{truncate(jd_text, JD_CHAR_LIMIT)}\n\n"
         "## 用户的料\n\n"
         + "\n\n".join(blocks)
         + "\n\n---\n\n"
