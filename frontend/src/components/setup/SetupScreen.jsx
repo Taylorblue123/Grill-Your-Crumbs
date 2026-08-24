@@ -3,6 +3,8 @@ import TopBar from '../shell/TopBar.jsx';
 import Stepper from '../shell/Stepper.jsx';
 import RichText from '../common/RichText.jsx';
 import UploadBox from './UploadBox.jsx';
+import RepoBox from './RepoBox.jsx';
+import GitHubBox from './GitHubBox.jsx';
 import TargetPicker from './TargetPicker.jsx';
 import { EXPERIENCES, GOALS, SOURCE_ICON } from '../../data/demo.js';
 import { useDispatch, useStore } from '../../store/StoreContext.jsx';
@@ -195,6 +197,8 @@ export default function SetupScreen({ onTour, tourRunning }) {
           <div className="blk">
             <div className="blab">本场装载的 Crumbs <i>进了工作台还能随时增减</i></div>
             <UploadBox />
+            <RepoBox />
+            <GitHubBox />
             <div className="crumbgrid">
               {sessionList.map((c) => (
                 <div className="cr" key={c.id}>

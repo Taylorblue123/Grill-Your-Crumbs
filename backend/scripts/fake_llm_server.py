@@ -18,6 +18,7 @@ from dataclasses import replace
 from typing import Any, Dict, List
 
 from backend.app.config import LlmSettings, Settings
+from backend.app.github import GitHubError
 from backend.app.main import create_app
 
 
@@ -172,13 +173,105 @@ class ScriptedLlm:
         return card
 
 
+# --- 假 GitHub ---------------------------------------------------------------
+#
+# 和假 LLM 同样的理由：PAT 三件套的验收标准是行为性的（列表里看得见私有标记、
+# 批量拉取部分失败要逐项报错），得点一遍才算数。但真 GitHub 要一个真 PAT、
+# 吃配额，而且没法按需制造「这个仓限流了」。
+
+FAKE_TOKEN_PREFIX = "ghp_"
+
+FAKE_REPOS: Dict[str, Dict[str, Any]] = {
+    "me/second-hand": {
+        "private": False,
+        "description": "校园二手交易平台",
+        "pushed_at": "2026-08-18T00:00:00Z",
+        "readme": "# 二手\n把首页 P95 从 800ms 降到 120ms，靠的是给热门商品列表加了一层缓存。",
+        "commits": ["perf: 首页列表加 Redis 缓存", "feat: 下单流程", "fix: 库存超卖"],
+        "tree": ["README.md", "app/", "tests/"],
+    },
+    "me/internal-billing": {
+        "private": True,
+        "description": "还没开源的结算服务",
+        "pushed_at": "2026-08-22T00:00:00Z",
+        "readme": "# 结算\n把月结耗时从 3s 压到 400ms，改成了批处理。",
+        "commits": ["perf: 结算改批处理", "chore: 加监控"],
+        "tree": ["README.md", "billing/"],
+    },
+    "me/rate-limited": {
+        "private": False,
+        "description": "拉这个会撞限流（联调用）",
+        "pushed_at": "2026-06-01T00:00:00Z",
+    },
+    "me/empty-shell": {
+        "private": True,
+        "description": "",
+        "pushed_at": "2025-01-01T00:00:00Z",
+    },
+}
+
+
+class ScriptedGitHub:
+    """按剧本走的 GitHub。
+
+    留了两个**故意会失败**的仓库（`me/rate-limited` 限流、`me/empty-shell` 空仓），
+    因为「部分成功部分失败」正是批量拉取要验的那件事——全都成功的剧本验不出
+    逐项包络到底有没有用。
+    """
+
+    def verify_token(self, token: str) -> Dict[str, Any]:
+        if not token.startswith(FAKE_TOKEN_PREFIX):
+            raise GitHubError(
+                "GitHub 不认这个 token（无效或已过期）。联调用任意 ghp_ 开头的串即可。",
+                status_code=401,
+            )
+        return {"login": "me"}
+
+    def list_repos(self, token: str) -> List[Dict[str, Any]]:
+        return [
+            {
+                "full_name": name,
+                "private": repo["private"],
+                "description": repo["description"],
+                "pushed_at": repo["pushed_at"],
+            }
+            for name, repo in FAKE_REPOS.items()
+        ]
+
+    def fetch_repo(self, full_name: str, token: Any = None) -> Dict[str, Any]:
+        repo = FAKE_REPOS.get(full_name)
+        if repo is None:
+            raise GitHubError(f"找不到仓库 {full_name}。", status_code=404)
+        if full_name == "me/rate-limited":
+            raise GitHubError(
+                "GitHub 限流了（已登录状态每小时 5000 次请求，这轮用完了）。"
+                "等一会儿再试，或者先把 README 当文件上传。",
+                status_code=429,
+            )
+        if repo["private"] and not token:
+            raise GitHubError(f"找不到仓库 {full_name}。", status_code=404)
+        return {
+            "full_name": full_name,
+            "description": repo["description"],
+            "language": "Python",
+            "topics": [],
+            "stargazers_count": 0,
+            "forks_count": 0,
+            "created_at": "2025-01-01T00:00:00Z",
+            "pushed_at": repo["pushed_at"],
+            "readme": repo.get("readme", ""),
+            "commits": repo.get("commits", []),
+            "tree": repo.get("tree", []),
+        }
+
+
 def build() -> Any:
     # 真 key 不需要，也不该在联调里出现：LLM 整个被换掉了。
     settings = replace(
         Settings.from_env(),
         llm=LlmSettings(api_key="fake", model="fake", base_url=None),
     )
-    return create_app(settings, llm=ScriptedLlm())
+    return create_app(settings, llm=ScriptedLlm(), github=ScriptedGitHub())
 
 
 app = build()

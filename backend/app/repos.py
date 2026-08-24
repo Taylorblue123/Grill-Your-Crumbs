@@ -67,6 +67,20 @@ def parse_repo_url(raw: str) -> str:
     return full_name
 
 
+def normalize_full_name(raw: str) -> str:
+    """批量入口收到的 `owner/name` → 校验过的同一个串。
+
+    和 `parse_repo_url` 分开而不是复用它：批量入口的输入来自**我们自己刚发出去
+    的列表**，不是用户手打的地址栏内容。这里要挡的是被改过的请求体，不是各种
+    URL 形态——把它塞进 URL 解析器，会顺带接受 `https://github.com/...`，等于
+    悄悄多承诺了一种本票没测过的输入。
+    """
+    text = (raw or "").strip().strip("/")
+    if not _FULL_NAME.match(text):
+        raise RepoUrlError(f"认不出仓库「{raw}」，正确形状是 owner/name。")
+    return text
+
+
 def _clip(text: str, limit: int) -> str:
     """超长就截断并留一句明说的省略标记。
 
@@ -167,6 +181,33 @@ def commit_messages(payload: Any) -> List[str]:
         (entry.get("commit") or {}).get("message") or ""
         for entry in payload
         if isinstance(entry, dict)
+    ]
+
+
+def repo_listing(payload: Any) -> List[Dict[str, Any]]:
+    """`/user/repos` 的响应 → 挑选界面要的四个字段。
+
+    只留 `full_name / private / description / pushed_at`，不是偷懒：GitHub 一个
+    仓库的 JSON 有九十多个字段（各种 URL 模板、permissions、license…），原样
+    透出去等于把一份我们不负责的合同暴露给前端，而挑选列表一个都用不上。
+
+    `pushed_at` 留着是因为它是排序和判断的依据——「哪些仓库是我最近在动的」正是
+    用户在一屏几十个仓库里做取舍时唯一看的东西。
+    """
+    if not isinstance(payload, list):
+        return []
+    return [
+        {
+            "full_name": entry.get("full_name") or "",
+            # 私有标记必须如实透出：用户要能一眼看出「这个仓库连进去之后，我的
+            # 私有代码摘要就进了这个产品」。默认 True 而不是 False——形状不对时
+            # 把私有仓标成公开的，比反过来危险。
+            "private": bool(entry.get("private", True)),
+            "description": entry.get("description") or "",
+            "pushed_at": entry.get("pushed_at") or "",
+        }
+        for entry in payload
+        if isinstance(entry, dict) and entry.get("full_name")
     ]
 
 
