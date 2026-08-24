@@ -117,15 +117,107 @@ await shot('04-restored');
 /* ── ⑥ 树问空 → 自动收口 ────────────────────────────────────── */
 await page.locator('.live-ans-box').fill('出过一次缓存击穿，加了互斥锁。');
 await page.getByRole('button', { name: '答完了，继续 →' }).click();
-await page.waitForSelector('.live-closed', { timeout: 30000 });
+await page.waitForSelector('.live-rewrite', { timeout: 30000 });
 
-check('树空时自动收口', await page.locator('.live-closed').isVisible());
+check('树空时自动收口', await page.locator('.live-rewrite').isVisible());
 check('收口后没有问题卡了', (await page.locator('.qcard').count()) === 0);
 check('收口那一轮的事实照样入账本', (await page.locator('.live-fact').count()) === 4);
 /* 答了 3 轮，挖出 4 条——轮数和事实数不是一回事（一轮可以抽出好几条）。 */
-check('收口文案报出问了几轮、挖到几条',
-  (await page.locator('.live-closed h3').innerText()).includes('3 问，挖出 4 条'));
+const sumText = await page.locator('.live-rewrite-h h3').innerText();
+check('收口文案报出问了几轮、挖到几条', sumText.includes('3 问') && sumText.includes('4 条'), sumText);
+/* 收口之后这一屏换了身份：定靶那套抬头不该还在。 */
+check('收口后不再显示「贴一段 JD」的抬头', (await page.locator('.live-h1').count()) === 0);
 await shot('05-closed');
+
+/* ── ⑥b 成稿对比：初稿自动出、金色溯源、改稿、版本、Markdown ──── */
+await page.waitForSelector('.live-rewrite .live-cmp', { timeout: 30000 });
+
+check('收口后自动出初稿，不用先点一个「生成」',
+  (await page.locator('.live-rewrite .pn').count()) === 2);
+check('左边是原简历',
+  (await page.locator('.live-rewrite .pn.before .old').innerText()).includes('优化了接口性能'));
+check('右边标着当前版本号',
+  (await page.locator('.live-rewrite .pn:not(.before) .pn-t').innerText()).includes('v1'));
+
+/* 金色片段＝拷问挖出来的那几段。原简历本来就有的不染色——满屏都染
+   等于什么都没指认。 */
+const goldCount = await page.locator('.live-rewrite .sg.grill').count();
+check('拷问挖出来的段落染成金色', goldCount > 0, `${goldCount} 处`);
+check('原简历本来就有的段落不染色',
+  (await page.locator('.live-rewrite .sheet .bul').count()) > goldCount);
+check('金色段落的沟槽里标着它来自第几问',
+  (await page.locator('.live-rewrite .sheet .bul.gold .rd').count()) === goldCount);
+check('账本搬进了出处边栏', (await page.locator('.live-rail .live-fact').count()) === 4);
+
+/* hover 金色片段 → 弹出它来自的那一轮问答。 */
+await page.locator('.live-rewrite .sg.grill').first().hover();
+await page.waitForSelector('#pop', { timeout: 5000 });
+const popText = await page.locator('#pop').innerText();
+check('hover 金色片段显示它来自第几问', /第 \d+ 问/.test(popText), popText.slice(0, 40));
+check('hover 卡片带出当轮的问和答', popText.includes('问：') && popText.includes('答：'));
+/* 出处那条线的两头：hover 段落点亮它依据的事实，hover 事实点亮引用它的段落。 */
+check('hover 金色段落，账本里它依据的事实亮起来',
+  (await page.locator('.live-rail .live-fact.lit').count()) > 0);
+await page.locator('.live-rail .live-fact').last().hover();
+check('hover 一条事实，引用它的段落亮起来',
+  (await page.locator('.live-rewrite .sheet .bul.lit').count()) > 0);
+await page.mouse.move(0, 0);
+await shot('05b-draft');
+
+/* 一键复制 Markdown。剪贴板权限在 headless 里要显式授予。 */
+await page.context().grantPermissions(['clipboard-read', 'clipboard-write'], { origin: BASE });
+await page.getByRole('button', { name: '复制 Markdown' }).click();
+const clipboard = await page.evaluate(() => navigator.clipboard.readText());
+const sheetText = await page.locator('.live-rewrite .sheet').innerText();
+const copied = clipboard.split('\n\n').map((line) => line.trim()).filter(Boolean);
+const bullets = await page.locator('.live-rewrite .sheet .bul').allInnerTexts();
+check('复制出来的 Markdown 不是空的', copied.length > 0);
+/* 两个方向都要验：只验「复制的每段都在成稿里」，漏掉一半段落的复制照样通过。 */
+check('复制的每一段都在右侧成稿里',
+  copied.every((line) => sheetText.includes(line)));
+check('右侧成稿的每一段都被复制到了',
+  bullets.length === copied.length
+    && bullets.every((b) => copied.some((line) => b.replace(/^—\s*/, '').includes(line))),
+  `成稿 ${bullets.length} 段 / 复制 ${copied.length} 段`);
+
+/* 自然语言指令改稿 → 版本推进，出处标记不丢。 */
+await page.locator('.live-input').fill('口语一点');
+await page.getByRole('button', { name: '改一版' }).click();
+await page.waitForSelector('.live-versions', { timeout: 30000 });
+check('指令改稿推进到 v2',
+  (await page.locator('.live-rewrite .pn:not(.before) .pn-t').innerText()).includes('v2'));
+check('改稿后金色溯源没丢',
+  (await page.locator('.live-rewrite .sg.grill').count()) === goldCount);
+/* 正常指令不该被拒——之前的 smoke 没验这一条，假 LLM 把每条指令都拒了也照样全绿。 */
+check('正常指令没有被拒', (await page.locator('.live-refusal').count()) === 0);
+check('改稿之后正文确实变了',
+  (await page.locator('.live-rewrite .sheet').innerText()).includes('改稿版'));
+check('改稿成功后指令框清空', (await page.locator('.live-input').inputValue()) === '');
+check('版本条列出 v1 和 v2', (await page.locator('.live-ver').count()) >= 2);
+await shot('05c-revised');
+
+/* 回看旧版：纯读，不把旧版复制成新版。 */
+await page.getByRole('tab', { name: 'v1', exact: true }).click();
+await page.waitForSelector('.live-stale', { timeout: 10000 });
+check('可以回看 v1',
+  (await page.locator('.live-rewrite .pn:not(.before) .pn-t').innerText()).includes('v1'));
+check('回看时明说改稿改的仍是最新版',
+  (await page.locator('.live-revise .live-stale').innerText()).includes('v2'));
+await page.getByRole('button', { name: '回到最新版' }).click();
+
+/* 违规指令（要求编造）被拒绝并说明原因——产品唯一红线的出口。 */
+await page.locator('.live-input').fill('再加一段字节跳动的实习经历');
+await page.getByRole('button', { name: '改一版' }).click();
+await page.waitForSelector('.live-refusal', { timeout: 30000 });
+check('要求编造的指令被拒绝', await page.locator('.live-refusal').isVisible());
+check('拒绝时说清了为什么不写',
+  (await page.locator('.live-refusal p').innerText()).includes('没有任何事实支撑'));
+check('被拒之后成稿没被搅乱',
+  (await page.locator('.live-rewrite .sg.grill').count()) === goldCount);
+check('被拒的那一版标题说明它没改',
+  (await page.locator('.live-rewrite .pn.after .pn-t').innerText()).includes('没改'));
+check('被拒的指令留在框里等用户改', (await page.locator('.live-input').inputValue()).includes('实习'));
+await shot('05d-refused');
 
 /* ── ⑦ 会话丢失 → 「重开一场」提示 ──────────────────────────── */
 await page.evaluate(() => {
@@ -144,19 +236,19 @@ await page.locator('.live-jd').fill('再来一场，招后端。');
 await page.getByRole('button', { name: '开始拷问 →' }).click();
 await page.waitForSelector('.qcard', { timeout: 30000 });
 await page.getByRole('button', { name: '够了，去改写 →' }).click();
-await page.waitForSelector('.live-closed', { timeout: 10000 });
-check('「够了」一题未答也能中断', await page.locator('.live-closed').isVisible());
+await page.waitForSelector('.live-rewrite', { timeout: 10000 });
+check('「够了」一题未答也能中断', await page.locator('.live-rewrite').isVisible());
 check('中断的文案和问完的不同',
-  (await page.locator('.live-closed p').innerText()).includes('你叫停'));
+  (await page.locator('.live-rewrite-h p').innerText()).includes('你叫停'));
 await shot('07-stopped-early');
 
 /* 中断必须写进服务端：否则刷新一次就把用户送回他刚走开的那道题。 */
 await page.reload({ waitUntil: 'networkidle' });
-await page.waitForSelector('.live-closed', { timeout: 15000 });
+await page.waitForSelector('.live-rewrite', { timeout: 15000 });
 check('中断后刷新仍是收口状态，不会被送回原题',
   (await page.locator('.qcard').count()) === 0);
 check('刷新后仍认得出是「叫停」而不是「问完了」',
-  (await page.locator('.live-closed p').innerText()).includes('你叫停'));
+  (await page.locator('.live-rewrite-h p').innerText()).includes('你叫停'));
 
 /* ── 收尾 ───────────────────────────────────────────────────── */
 /* ⑦ 是故意往 sessionStorage 里塞一个不存在的会话 id，那一次 GET 必然 404，

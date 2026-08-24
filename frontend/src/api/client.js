@@ -9,6 +9,9 @@
      POST   /api/v1/grill/sessions   开场：JD + 选料 → 挖掘树 → 首题
      GET    /api/v1/grill/sessions/{id}          会话全投影（刷新后重连现场）
      POST   /api/v1/grill/sessions/{id}/answers  作答一轮 → 事实 + 下一题/收口
+     POST   /api/v1/grill/sessions/{id}/rewrite  出初稿 / 按指令改稿 → 带出处的成稿
+     GET    /api/v1/grill/sessions/{id}/rewrite/versions   版本历史
+     GET    /api/v1/grill/sessions/{id}/rewrite/{version}  回看某一版
 
    这一层只做「HTTP ↔ 前端形状」的翻译，不碰任何 UI 状态。
    后端不在时所有调用都抛错，由调用方降级成纯演示模式。
@@ -259,4 +262,59 @@ export function uploadAttachment(file, kind, onProgress) {
     form.append('kind', kind);
     xhr.send(form);
   });
+}
+
+/* 成稿改写。三条路径，失败语义和拷问那几条一致：会话没了 → 重开一场，
+   其余原样透出后端的话（同一指令可安全重发，后端不会留下半个版本）。
+
+   指令被拒绝（要求编造未挖到的经历）**不是**失败：后端给 200，响应里带
+   `refusal`。调用方要读它，不能只看 HTTP 状态——把拒绝当故障重试没有意义。 */
+export async function requestRewrite(sessionId, instruction = null) {
+  let response;
+  try {
+    response = await fetch(`${V1}/grill/sessions/${encodeURIComponent(sessionId)}/rewrite`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ instruction }),
+    });
+  } catch {
+    throw new Error('连不上后端。请按 backend/README.md 的命令启动服务后重试。');
+  }
+  if (response.status === 404) throw new SessionGoneError('这场拷问不在了。');
+  if (!response.ok) {
+    throw new Error(await readError(response, `改写失败（HTTP ${response.status}）`));
+  }
+  return response.json();
+}
+
+export async function fetchRewriteVersions(sessionId) {
+  let response;
+  try {
+    response = await fetch(
+      `${V1}/grill/sessions/${encodeURIComponent(sessionId)}/rewrite/versions`,
+    );
+  } catch {
+    throw new Error('连不上后端。请按 backend/README.md 的命令启动服务后重试。');
+  }
+  if (response.status === 404) throw new SessionGoneError('这场拷问不在了。');
+  if (!response.ok) {
+    throw new Error(await readError(response, `读版本历史失败（HTTP ${response.status}）`));
+  }
+  return response.json();
+}
+
+export async function fetchRewriteVersion(sessionId, version) {
+  let response;
+  try {
+    response = await fetch(
+      `${V1}/grill/sessions/${encodeURIComponent(sessionId)}/rewrite/${version}`,
+    );
+  } catch {
+    throw new Error('连不上后端。请按 backend/README.md 的命令启动服务后重试。');
+  }
+  if (response.status === 404) throw new SessionGoneError('没有这一版成稿。');
+  if (!response.ok) {
+    throw new Error(await readError(response, `读成稿失败（HTTP ${response.status}）`));
+  }
+  return response.json();
 }
