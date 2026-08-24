@@ -9,7 +9,7 @@ import { useDispatch, useStore } from '../../store/StoreContext.jsx';
    这里只负责把成功返回的 crumb 放进本场，之后完全沿用既有的材料选择 /
    provenance 交互——上传来的材料和演示样例在工作台里是同一种东西。
    ============================================================ */
-const ACCEPT = '.pdf,.docx,.txt,.md,.markdown,.csv,.json';
+const ACCEPT = '.pdf,.docx,.html,.htm,.txt,.md,.markdown,.csv,.json';
 const KINDS = [
   { value: 'auto', label: '自动判断' },
   { value: 'resume', label: '简历' },
@@ -111,7 +111,7 @@ export default function UploadBox() {
           <span className="upload-ic">＋</span>
           <span>
             <b>拖文件到这里，或点选上传</b>
-            <small>PDF / DOCX / TXT / Markdown / CSV / JSON · 单个不超过 10 MB</small>
+            <small>PDF / DOCX / HTML / TXT / Markdown / CSV / JSON · 单个不超过 10 MB</small>
           </span>
         </div>
         {/* 点选择框不应该同时触发文件选择器，所以这里吞掉冒泡 */}

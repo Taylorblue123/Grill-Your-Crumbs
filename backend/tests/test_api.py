@@ -102,3 +102,91 @@ def test_serves_built_prototype_and_health(tmp_path: Path) -> None:
         response = client.get("/")
         assert response.status_code == 200
         assert "demo" in response.text
+
+
+HTML_RESUME = """<!doctype html>
+<html><head><title>简历</title>
+<style>body { color: #333; }</style>
+<script>console.log("noise");</script>
+</head>
+<body>
+  <h1>王小明</h1>
+  <p>把延迟从 <b>800ms</b> 降到 <i>120ms</i>。</p>
+  <!-- 招聘方看不到的注释 -->
+  <ul><li>Python &amp; FastAPI</li></ul>
+</body></html>
+"""
+
+
+def test_html_upload_strips_tags_and_infers_resume(tmp_path: Path) -> None:
+    with make_client(tmp_path) as client:
+        response = client.post(
+            "/api/v1/attachments",
+            files={"file": ("resume.html", HTML_RESUME, "text/html")},
+        )
+
+        assert response.status_code == 201
+        crumb = response.json()["crumb"]
+        assert crumb["kind"] == "resume"
+        assert crumb["attachment"]["media_type"] == "text/html"
+
+        content = crumb["content"]
+        assert "<" not in content and ">" not in content
+        assert "王小明" in content
+        assert "把延迟从 800ms 降到 120ms。" in content
+        # 标签剥离要连同不可见内容一起丢掉：脚本、样式、注释都不是简历正文。
+        assert "console.log" not in content
+        assert "color: #333" not in content
+        assert "招聘方看不到的注释" not in content
+        # HTML 实体要还原成字符，别把 &amp; 原样喂给拷问。
+        assert "Python & FastAPI" in content
+        assert "&amp;" not in content
+
+        listed = client.get("/api/v1/crumbs").json()["crumbs"]
+        assert [c["id"] for c in listed] == [crumb["id"]]
+        assert listed[0]["content"] == content
+
+
+def test_html_upload_respects_explicit_kind_and_htm_suffix(tmp_path: Path) -> None:
+    with make_client(tmp_path) as client:
+        response = client.post(
+            "/api/v1/attachments",
+            data={"kind": "notes"},
+            files={"file": ("scratch.htm", "<p>一条随手记</p>", "text/html")},
+        )
+
+        assert response.status_code == 201
+        crumb = response.json()["crumb"]
+        assert crumb["kind"] == "notes"
+        assert crumb["content"] == "一条随手记"
+
+
+def test_html_upload_without_text_is_rejected(tmp_path: Path) -> None:
+    with make_client(tmp_path) as client:
+        response = client.post(
+            "/api/v1/attachments",
+            files={"file": ("empty.html", "<html><body><br><hr></body></html>", "text/html")},
+        )
+
+        assert response.status_code == 422
+        assert list((tmp_path / "uploads").rglob("*.*")) == []
+
+
+def test_html_upload_survives_unclosed_head(tmp_path: Path) -> None:
+    """真实导出的简历常省略 `</head>`；正文不能因此被整份吞掉。"""
+    with make_client(tmp_path) as client:
+        response = client.post(
+            "/api/v1/attachments",
+            files={
+                "file": (
+                    "sloppy.html",
+                    "<html><head><title>简历</title><body><p>正文还在</p></body></html>",
+                    "text/html",
+                )
+            },
+        )
+
+        assert response.status_code == 201
+        content = response.json()["crumb"]["content"]
+        assert "正文还在" in content
+        assert "简历" not in content  # <title> 是元数据，不是简历正文
