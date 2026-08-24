@@ -5,7 +5,9 @@
      GET    /api/v1/crumbs           列出当前用户的材料
      POST   /api/v1/attachments      上传附件 → 抽取文本 → 建 crumb
      DELETE /api/v1/crumbs/{id}      删除材料（连同落盘的原文件）
-     POST   /api/v1/repos            连一个公开仓库 → repo 料（upsert）
+     POST   /api/v1/repos            连仓库 → repo 料（upsert）：贴 url，或批量 full_names
+     POST   /api/v1/github/token     贴一个 PAT（后端先验后存，永不回显）
+     GET    /api/v1/github/repos     token 可见的全部仓库（含私有）
      POST   /api/v1/grill/sessions   开场：JD + 选料 → 挖掘树 → 首题
      GET    /api/v1/grill/sessions/{id}          会话全投影（刷新后重连现场）
      POST   /api/v1/grill/sessions/{id}/answers  作答一轮 → 事实 + 下一题/收口
@@ -27,6 +29,10 @@ export const API_BASE =
     : '');
 
 const V1 = `${API_BASE}/api/v1`;
+
+/* 「后端没起来」的文案只此一份：它出现在每一个 fetch 的 catch 里，抄成几份
+   之后改一个字就得全仓库搜一遍。 */
+const OFFLINE = '连不上后端。请按 backend/README.md 的命令启动服务后重试。';
 
 /* 后端 CrumbView → 前端 crumb。前端多带一个 remote 标记：
    只有后端来的材料才能被删除，演示样例删不得。 */
@@ -79,9 +85,9 @@ export async function deleteCrumb(id) {
    这里把单项拆出来交给调用方：`{crumb, updated}` 或抛 `RepoConnectError`。
 
    `RepoConnectError` 带 `kind`（后端的 `error_kind`），因为整个响应是 200，
-   四种失败的区分只活在包络里。UI 要靠它决定给不给「把 README 当文件上传」那段
+   各种失败的区分只活在包络里。UI 要靠它决定给不给「把 README 当文件上传」那段
    兜底指引：限流、私有仓、拉取失败给得对；空仓库给了是错的（上传 README 也没有
-   README 可上传）。 */
+   README 可上传），超出批量上限给了也是错的（出路是分批再勾一次）。 */
 export class RepoConnectError extends Error {
   constructor(message, fullName, kind) {
     super(message);
@@ -91,39 +97,148 @@ export class RepoConnectError extends Error {
   }
 
   /* 兜底指引对哪些失败是真出路。用白名单而不是「排除 empty」：
-     日后后端加一种新的失败种类时，默认不给建议比默认给错建议好。 */
+     日后后端加一种新的失败种类时，默认不给建议比默认给错建议好——`overflow`
+     和 `unauthorized` 就是这么被挡在外面的，它们各自有别的出路。 */
   get hasFallback() {
     return ['not_found', 'rate_limit', 'fetch_failed'].includes(this.kind);
   }
 }
 
-export async function connectRepo(url) {
+/* 两个入口共用的那一半：打 POST /api/v1/repos，把逐项包络原样交回。
+   贴 URL 和批量勾选之后的一切（拉取、建摘要、upsert、错误分类）在后端是同一段
+   逻辑，前端也就没有理由把它拆成两份 fetch。 */
+async function postRepos(body) {
   let response;
   try {
     response = await fetch(`${V1}/repos`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ url }),
+      body: JSON.stringify(body),
     });
   } catch {
-    throw new Error('连不上后端。请按 backend/README.md 的命令启动服务后重试。');
+    throw new Error(OFFLINE);
   }
-  /* 400 是 URL 本身认不出：那时后端连 full_name 都填不出来，没有逐项包络，
-     错的是用户粘的东西，不是拉取——所以它不带兜底指引。 */
+  /* 400 是请求本身不合法（URL 认不出、两个入口都给或都不给）：那时后端连
+     full_name 都填不出来，没有逐项包络，错的是请求，不是拉取——所以它不带
+     兜底指引。 */
   if (!response.ok) {
     throw new Error(await readError(response, `连接失败（HTTP ${response.status}）`));
   }
   const payload = await response.json();
-  const result = (payload.results || [])[0];
-  if (!result) throw new Error('后端没有返回任何结果。');
+  return payload.results || [];
+}
+
+/* 逐项结果 → 前端形状。成功给 `{crumb, updated, fullName}`，失败给一个
+   `RepoConnectError`——**不抛出来**：批量时一项失败不该中断其余项的处理，
+   所以错误在这里是一个值，由调用方决定怎么摆。 */
+function toRepoOutcome(result) {
   if (!result.ok) {
-    throw new RepoConnectError(
-      result.error || '没能连上这个仓库。',
-      result.full_name,
-      result.error_kind,
-    );
+    return {
+      ok: false,
+      fullName: result.full_name,
+      error: new RepoConnectError(
+        result.error || '没能连上这个仓库。',
+        result.full_name,
+        result.error_kind,
+      ),
+    };
   }
-  return { crumb: toCrumb(result.crumb), updated: !!result.updated, fullName: result.full_name };
+  return {
+    ok: true,
+    fullName: result.full_name,
+    crumb: toCrumb(result.crumb),
+    updated: !!result.updated,
+  };
+}
+
+export async function connectRepo(url) {
+  const results = await postRepos({ url });
+  const result = results[0];
+  if (!result) throw new Error('后端没有返回任何结果。');
+  const outcome = toRepoOutcome(result);
+  /* 单个仓库时失败**要抛**：调用方只连了一个东西，让它去 results[0].ok 里
+     翻一个必然只有一项的数组是没道理的。批量那条路不抛。 */
+  if (!outcome.ok) throw outcome.error;
+  return { crumb: outcome.crumb, updated: outcome.updated, fullName: outcome.fullName };
+}
+
+/* 批量连仓：勾选的 full_name 一次交给后端 → 每个仓库一条结果。
+
+   返回的是**逐项结果数组**而不是「成功的那些」：失败项要连着具体错误一起摆
+   到用户面前（哪个仓库、为什么、还能怎么办），把它们过滤掉等于把「五个里有两个
+   没连上」压缩成「连上了三个」——用户不会发现少的那两个。 */
+export async function connectRepos(fullNames) {
+  const results = await postRepos({ full_names: fullNames });
+  return results.map(toRepoOutcome);
+}
+
+/* --- GitHub PAT 三件套 ------------------------------------------------------
+
+   贴 token → 看列表 → 勾选批量拉取。token 走请求体而不是自定义请求头：后端的
+   CORS 白名单只放行 Content-Type / X-User-Id，加一个头就要同时改那份白名单，
+   而 body 里传一个字符串不需要任何额外的跨域配置。
+
+   PAT 是台阶不是终点——升级 OAuth device flow 时只换 token 的来源，这三个函数
+   的形状都不变。 */
+
+export class GitHubAuthError extends Error {
+  constructor(message) {
+    super(message);
+    this.name = 'GitHubAuthError';
+  }
+}
+
+async function githubFetch(path, init, fallback) {
+  let response;
+  try {
+    response = await fetch(`${V1}/github/${path}`, init);
+  } catch {
+    throw new Error(OFFLINE);
+  }
+  /* 401 单独成一类：它是唯一「用户自己能修」的失败（重贴一个 token），
+     UI 要靠它决定是把人退回贴 token 那一步，还是只显示一句报错。 */
+  if (response.status === 401) {
+    throw new GitHubAuthError(await readError(response, 'GitHub 连接已失效，请重新贴一个 token。'));
+  }
+  if (!response.ok) {
+    throw new Error(await readError(response, `${fallback}（HTTP ${response.status}）`));
+  }
+  return response.json();
+}
+
+/* 贴一个 PAT。后端存之前会先打一次 GitHub 验它，所以这里拿到 200 就意味着
+   token 真的能用——不必再自己验一遍。 */
+export async function connectGitHubToken(token) {
+  const body = await githubFetch(
+    'token',
+    {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ token }),
+    },
+    '连接 GitHub 失败',
+  );
+  return { connected: !!body.connected, login: body.login || null };
+}
+
+/* 断开连接。空 token 就是「清掉」，后端不会去问 GitHub。 */
+export function disconnectGitHub() {
+  return connectGitHubToken('');
+}
+
+/* token 可见的全部仓库，最近推送的排前面。`truncated` 为真时后端截断过——
+   要如实告诉用户，否则他会去找一个明明存在却没出现在列表里的仓库。 */
+export async function listGitHubRepos() {
+  const body = await githubFetch('repos', undefined, '拉取仓库列表失败');
+  return {
+    repos: (body.repos || []).map((repo) => ({
+      fullName: repo.full_name,
+      private: !!repo.private,
+      description: repo.description || '',
+      pushedAt: repo.pushed_at || '',
+    })),
+    truncated: !!body.truncated,
+  };
 }
 
 /* 开场一场拷问：定靶（JD 原文）+ 选料 → 后端规划挖掘树并出首题。

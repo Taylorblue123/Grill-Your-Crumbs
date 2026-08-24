@@ -11,7 +11,13 @@ from typing import Dict, List
 import httpx
 import pytest
 
-from backend.app.github import MAX_CONCURRENCY, GitHubError, HttpGitHub
+from backend.app.github import (
+    MAX_CONCURRENCY,
+    MAX_REPO_PAGES,
+    REPOS_PER_PAGE,
+    GitHubError,
+    HttpGitHub,
+)
 
 
 def transport(handler) -> httpx.MockTransport:
@@ -244,8 +250,138 @@ def test_concurrency_cap_actually_blocks(monkeypatch) -> None:
     assert inflight["peak"] == MAX_CONCURRENCY
 
 
-def test_list_repos_is_still_a_placeholder(monkeypatch) -> None:
-    """私有仓列表要 token，属 PAT 那一票。没有调用方的实现无从验证，
-    所以它抛 NotImplementedError 而不是伪装成一次网络失败。"""
-    with pytest.raises(NotImplementedError):
-        HttpGitHub().list_repos("ghp_x")
+# --- PAT：验 token / 列仓库 --------------------------------------------------
+
+
+def test_verify_token_sends_the_bearer_and_returns_the_login(monkeypatch) -> None:
+    seen = patch_client(monkeypatch, lambda request: httpx.Response(200, json={"login": "me"}))
+
+    assert HttpGitHub().verify_token("ghp_x") == {"login": "me"}
+
+    assert seen[0].url.path == "/user"
+    assert seen[0].headers["authorization"] == "Bearer ghp_x"
+
+
+def test_a_bad_token_maps_to_401_not_a_generic_failure(monkeypatch) -> None:
+    """401 是用户自己能修的那一种失败（重贴一个），别的都不是。
+
+    合成 502 会让「你贴的 token 不对」收到一句「稍后重试」——而他重试一百次
+    也不会好。
+    """
+    patch_client(monkeypatch, lambda request: httpx.Response(401, json={}))
+
+    with pytest.raises(GitHubError) as error:
+        HttpGitHub().verify_token("ghp_bad")
+
+    assert error.value.status_code == 401
+    assert "token" in str(error.value)
+
+
+def test_list_repos_asks_for_private_repos_and_keeps_only_the_four_fields(monkeypatch) -> None:
+    page = [
+        {
+            "full_name": "me/secret",
+            "private": True,
+            "description": "私有的",
+            "pushed_at": "2026-08-01T00:00:00Z",
+            # 真实响应里还有九十多个字段，一个都不该透出去。
+            "permissions": {"admin": True},
+            "clone_url": "https://github.com/me/secret.git",
+        },
+        {"full_name": "me/open", "private": False, "description": None, "pushed_at": ""},
+    ]
+    seen = patch_client(monkeypatch, lambda request: httpx.Response(200, json=page))
+
+    repos = HttpGitHub().list_repos("ghp_x")
+
+    assert repos == [
+        {
+            "full_name": "me/secret",
+            "private": True,
+            "description": "私有的",
+            "pushed_at": "2026-08-01T00:00:00Z",
+        },
+        {"full_name": "me/open", "private": False, "description": "", "pushed_at": ""},
+    ]
+    request = seen[0]
+    # `/user/repos` 而不是 `/users/{name}/repos`：后者只回公开仓，而看得见自己的
+    # 私有仓正是贴 PAT 换来的那件事。
+    assert request.url.path == "/user/repos"
+    assert request.headers["authorization"] == "Bearer ghp_x"
+    assert request.url.params["per_page"] == str(REPOS_PER_PAGE)
+    assert request.url.params["sort"] == "pushed"
+
+
+def test_list_repos_pages_until_a_short_page(monkeypatch) -> None:
+    """GitHub 不回总数，只能靠「这一页不满 100 条」判断到底了。
+
+    不翻页的话，超过 100 个仓库的用户会看不见自己后面的仓库——而且看不出少了。
+    """
+    def handler(request: httpx.Request) -> httpx.Response:
+        page = int(request.url.params["page"])
+        if page == 1:
+            return httpx.Response(
+                200,
+                json=[
+                    {"full_name": f"me/r{i}", "private": False}
+                    for i in range(REPOS_PER_PAGE)
+                ],
+            )
+        return httpx.Response(200, json=[{"full_name": "me/last", "private": True}])
+
+    seen = patch_client(monkeypatch, handler)
+
+    repos = HttpGitHub().list_repos("ghp_x")
+
+    assert len(repos) == REPOS_PER_PAGE + 1
+    assert repos[-1]["full_name"] == "me/last"
+    assert [r.url.params["page"] for r in seen] == ["1", "2"]
+
+
+def test_list_repos_stops_at_the_page_ceiling(monkeypatch) -> None:
+    """每页都满的话会一直翻下去——上限存在就是为了不让它无限翻。"""
+    full_page = [{"full_name": f"me/r{i}", "private": False} for i in range(REPOS_PER_PAGE)]
+    seen = patch_client(monkeypatch, lambda request: httpx.Response(200, json=full_page))
+
+    repos = HttpGitHub().list_repos("ghp_x")
+
+    assert len(seen) == MAX_REPO_PAGES
+    assert len(repos) == MAX_REPO_PAGES * REPOS_PER_PAGE
+
+
+def test_list_repos_maps_an_expired_token_to_401(monkeypatch) -> None:
+    patch_client(monkeypatch, lambda request: httpx.Response(401, json={}))
+
+    with pytest.raises(GitHubError) as error:
+        HttpGitHub().list_repos("ghp_stale")
+
+    assert error.value.status_code == 401
+
+
+def test_rate_limit_copy_differs_with_and_without_a_token(monkeypatch) -> None:
+    """配额差 83 倍（60/小时 vs 5000/小时），处置也不同。
+
+    没 token 的人该去连一个 PAT，有 token 的人只能等。给他们同一句「等一会儿
+    再试」，等于对前一种人藏起了当场就能用的出路。
+    """
+    limited = httpx.Response(429, json={})
+    patch_client(monkeypatch, lambda request: limited)
+
+    with pytest.raises(GitHubError) as anonymous:
+        HttpGitHub().fetch_repo("me/second-hand")
+    with pytest.raises(GitHubError) as authenticated:
+        HttpGitHub().fetch_repo("me/second-hand", "ghp_x")
+
+    assert "60" in str(anonymous.value) and "token" in str(anonymous.value)
+    assert "5000" in str(authenticated.value)
+    # 有 token 的人再去连一个 token 是没有出路的，不该这么建议他。
+    assert "连一个 GitHub token" not in str(authenticated.value)
+
+
+def test_fetching_a_private_repo_with_a_token_sends_the_bearer(monkeypatch) -> None:
+    """有 token 时贴 URL 也能连私有仓——同一条路，多带一个 Authorization。"""
+    seen = patch_client(monkeypatch, happy_handler)
+
+    HttpGitHub().fetch_repo("me/second-hand", "ghp_x")
+
+    assert all(request.headers["authorization"] == "Bearer ghp_x" for request in seen)

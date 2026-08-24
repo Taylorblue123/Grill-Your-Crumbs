@@ -1,3 +1,4 @@
+from concurrent.futures import ThreadPoolExecutor, as_completed
 from contextlib import asynccontextmanager
 from datetime import datetime, timezone
 import hashlib
@@ -16,15 +17,25 @@ from .answer import run_turn
 from .config import Settings
 from .database import Database
 from .extraction import ExtractionError, MEDIA_TYPES, extract_text, validate_extension
-from .github import GitHub, GitHubError, HttpGitHub
+from .github import MAX_CONCURRENCY, GitHub, GitHubError, HttpGitHub
 from .grill import GrillError, open_session, pick_baseline, question_view
 from .llm import Llm, LlmError, OpenAiLlm
-from .repos import RepoUrlError, build_repo_summary, parse_repo_url, repo_has_substance
+from .repos import (
+    RepoUrlError,
+    build_repo_summary,
+    normalize_full_name,
+    parse_repo_url,
+    repo_has_substance,
+)
 from .rewrite import cache_key, run_rewrite
 from .schemas import (
     CrumbListResponse,
     CrumbView,
     FactView,
+    GitHubRepoListResponse,
+    GitHubRepoView,
+    GitHubTokenRequest,
+    GitHubTokenResponse,
     GrillAnswerRequest,
     GrillAnswerResponse,
     GrillSessionRequest,
@@ -41,13 +52,28 @@ from .schemas import (
     UploadResponse,
 )
 from .sessions import GrillSessionStore
+from .tokens import TokenStore
 
 
 CHUNK_SIZE = 1024 * 1024
 VALID_KINDS = {"resume", "repo", "notes", "diary", "social", "linkedin", "manual"}
 
 # GitHub 适配器的状态码 → 逐项包络里的失败种类。见 `RepoResult.error_kind`。
-_ERROR_KINDS = {404: "not_found", 429: "rate_limit", 502: "fetch_failed"}
+_ERROR_KINDS = {
+    401: "unauthorized",
+    404: "not_found",
+    429: "rate_limit",
+    502: "fetch_failed",
+}
+
+# 一次批量最多连多少个仓库。上限的理由是「拉 50 个仓库要打 200 个 GitHub
+# 端点、几分钟不返回」——那时用户早已经以为页面卡死了。超出的部分不静默丢掉，
+# 逐项包络里逐个说明。
+MAX_BATCH_REPOS = 20
+
+# 列表最多回多少行。适配器已经在 10 页处截断（1000 个），这一层再收一次是
+# 因为「一屏能挑得动多少」和「拉得到多少」是两回事。截断时明说，不静默。
+MAX_LISTED_REPOS = 300
 
 
 def utc_now() -> str:
@@ -168,6 +194,9 @@ def create_app(
     app_llm: Llm = llm or OpenAiLlm(app_settings.llm)
     app_github: GitHub = github or HttpGitHub()
     sessions = GrillSessionStore(app_settings.session_mirror_path)
+    # GitHub 凭据仓：纯内存，无镜像、无 SQLite。见 tokens.TokenStore 的
+    # 模块注释——「PAT 不落任何地方」是那个类型本身的性质，不靠这里自觉。
+    tokens = TokenStore()
 
     @asynccontextmanager
     async def lifespan(_: FastAPI):
@@ -185,6 +214,7 @@ def create_app(
     app.state.database = database
     app.state.llm = app_llm
     app.state.github = app_github
+    app.state.tokens = tokens
     app.state.sessions = sessions
     app.add_middleware(
         CORSMiddleware,
@@ -302,37 +332,99 @@ def create_app(
             if upload_root in storage_path.parents:
                 storage_path.unlink(missing_ok=True)
 
-    @app.post("/api/v1/repos", response_model=RepoConnectResponse)
-    def connect_repo(
-        request: RepoConnectRequest, user_id: str = Depends(current_user_id)
-    ) -> RepoConnectResponse:
-        """连一个公开仓库：拉元数据 + README + 近期 commit + 顶层文件树 → 一份 repo 料。
+    # --- GitHub 连接 ---------------------------------------------------------
+    #
+    # 三个端点是一条链：贴 token → 看列表 → 勾选批量拉取。分成三个而不是一个
+    # 「连 GitHub」大端点，因为中间那一步是**用户在做决定**——他要看着私有标记
+    # 和最近推送时间挑哪几个仓库值得进场。把挑选折进一次调用，等于替他决定。
 
-        **响应总是 200，失败装在逐项包络里。** 单个仓库时这看起来绕，但 PAT 那
-        一票要批量连，「三个成功两个失败」没有一个 HTTP 状态码能表达。现在就按
-        逐项定形，日后加批量入口不必破坏已经发出去的合同。
+    @app.post("/api/v1/github/token", response_model=GitHubTokenResponse)
+    def connect_github_token(
+        request: GitHubTokenRequest, user_id: str = Depends(current_user_id)
+    ) -> GitHubTokenResponse:
+        """存一个 PAT，并当场验证它是不是真的能用。
 
-        唯一的例外是 URL 认不出（400）：那时连 `full_name` 都填不出来，逐项包络
-        没有主键可用，而且这是请求本身不合法，不是某一项拉取失败。
+        **存之前先验**：不验的话，用户贴错 token 要到下一步（拉列表）才发现，
+        而那时的报错指向的是「列表拉不到」，不是「你贴的 token 不对」。一次
+        `/user` 调用就能把错误归位到真正的原因上。
 
-        **upsert 而不是去重。** 同一个仓库重拉，内容几乎必然变了（新 commit、
-        改过的 README），按 content_hash 去重会让它在料列表里堆成好几条。仓库的
-        身份是 `full_name`，所以按 `(kind='repo', display_name=full_name)` 替换。
+        空 token 是「断开连接」：清掉已存的那份，回 `connected=False`。这条路
+        不打 GitHub——断开不需要 GitHub 同意。
         """
-        try:
-            full_name = parse_repo_url(request.url)
-        except RepoUrlError as error:
-            raise HTTPException(status_code=400, detail=str(error)) from error
+        raw = (request.token or "").strip()
+        if not raw:
+            tokens.clear(user_id)
+            return GitHubTokenResponse(connected=False)
 
-        def failed(message: str, kind: str) -> RepoConnectResponse:
-            return RepoConnectResponse(
-                results=[
-                    RepoResult(full_name=full_name, ok=False, error=message, error_kind=kind)
-                ]
+        try:
+            identity = app_github.verify_token(raw)
+        except GitHubError as error:
+            # 401 是「这个 token 不行」（用户能修），其余是「我们没能验成」
+            # （用户修不了）。合成同一个状态码会让前者收到一句「稍后重试」——
+            # 而他重试一百次也不会好。
+            raise HTTPException(
+                status_code=401 if error.status_code == 401 else 502, detail=str(error)
+            ) from error
+        except Exception as error:  # noqa: BLE001 — 适配器的意外失败不该是 500
+            raise HTTPException(
+                status_code=502, detail=f"没能验证这个 token：{error}"
+            ) from error
+
+        tokens.set(user_id, raw)
+        return GitHubTokenResponse(connected=True, login=identity.get("login") or None)
+
+    @app.get("/api/v1/github/repos", response_model=GitHubRepoListResponse)
+    def list_github_repos(
+        user_id: str = Depends(current_user_id),
+    ) -> GitHubRepoListResponse:
+        """token 可见的全部仓库（含私有），最近推送的排前面。
+
+        没存 token 就是 401：这不是「列表是空的」。空列表会让前端画一个「你没有
+        仓库」的空态，而真相是「你还没连 GitHub」——两者的出路完全不同。
+        """
+        token = tokens.get(user_id)
+        if token is None:
+            raise HTTPException(
+                status_code=401, detail="还没连 GitHub。先贴一个 Personal Access Token。"
             )
 
         try:
-            repo = app_github.fetch_repo(full_name)
+            repos = app_github.list_repos(token)
+        except GitHubError as error:
+            if error.status_code == 401:
+                # token 已经失效（用户在 GitHub 那边撤销/过期了）。留着它只会让
+                # 接下来每一次拉取都撞同一堵墙，所以当场清掉——前端收到 401 就
+                # 知道该重新要一次 PAT。
+                tokens.clear(user_id)
+            raise HTTPException(
+                status_code=error.status_code or 502, detail=str(error)
+            ) from error
+        except Exception as error:  # noqa: BLE001
+            raise HTTPException(
+                status_code=502, detail=f"没能拉到你的仓库列表：{error}"
+            ) from error
+
+        return GitHubRepoListResponse(
+            repos=[GitHubRepoView(**repo) for repo in repos[:MAX_LISTED_REPOS]],
+            truncated=len(repos) > MAX_LISTED_REPOS,
+        )
+
+    def _failed(full_name: str, message: str, kind: str) -> RepoResult:
+        return RepoResult(full_name=full_name, ok=False, error=message, error_kind=kind)
+
+    def fetch_one_repo(full_name: str, token: Optional[str]) -> Any:
+        """拉一个仓库 → 仓库数据，或一条失败结果。**永不抛异常**（除程序错误）。
+
+        和「入库」分开，是为了让批量那条路能把这一半**并发**跑起来：拉取是
+        纯网络等待，入库是 SQLite 写。合在一起就只能整个串行——20 个仓库要打
+        80 次 GitHub，一个请求几分钟不返回，用户早以为页面卡死了。
+        """
+
+        def failed(message: str, kind: str) -> RepoResult:
+            return _failed(full_name, message, kind)
+
+        try:
+            repo = app_github.fetch_repo(full_name, token)
         except GitHubError as error:
             # 适配器算出的状态码在这里翻成 `error_kind`。翻译而不是直接透出数字：
             # 整个响应是 200（逐项包络），一个裸的 404 字段只会让人以为响应本身是
@@ -350,6 +442,17 @@ def create_app(
                 f"{full_name} 里没有可拷问的内容——没有 README、没有 commit、也没有文件。",
                 "empty",
             )
+        return repo
+
+    def store_one_repo(user_id: str, full_name: str, repo: Dict[str, Any]) -> RepoResult:
+        """仓库数据 → 一份 repo 料（upsert）→ 一条逐项结果。
+
+        **只在单线程里调用。** 上面那一半可以并发，这一半不行：它读一次库
+        （找同名旧料）再写一次，两个线程同时给同一个仓库做这件事会互相顶掉。
+        """
+
+        def failed(message: str, kind: str) -> RepoResult:
+            return _failed(full_name, message, kind)
 
         content = build_repo_summary(repo)
         existing = database.find_crumb_by_display_name(user_id, "repo", full_name)
@@ -369,31 +472,146 @@ def create_app(
             twin = database.find_crumb_by_hash(user_id, crumb["content_hash"])
             if twin is None:
                 # 约束是被别的什么撞的，我们没能力解释——按拉取失败交代。
-                return failed(
-                    f"没能把 {full_name} 存成一份料，请稍后重试。", "fetch_failed"
-                )
-            return RepoConnectResponse(
-                results=[
-                    RepoResult(
-                        full_name=full_name,
-                        ok=True,
-                        crumb=make_crumb_view(twin),
-                        # 没有新建也没有替换，交回的是本来就在的那份。
-                        updated=False,
-                    )
-                ]
+                return failed(f"没能把 {full_name} 存成一份料，请稍后重试。", "fetch_failed")
+            return RepoResult(
+                full_name=full_name,
+                ok=True,
+                crumb=make_crumb_view(twin),
+                # 没有新建也没有替换，交回的是本来就在的那份。
+                updated=False,
             )
 
-        return RepoConnectResponse(
-            results=[
-                RepoResult(
-                    full_name=full_name,
-                    ok=True,
-                    crumb=make_crumb_view(crumb),
-                    updated=existing is not None,
-                )
-            ]
+        return RepoResult(
+            full_name=full_name,
+            ok=True,
+            crumb=make_crumb_view(crumb),
+            updated=existing is not None,
         )
+
+    def connect_one_repo(user_id: str, full_name: str, token: Optional[str]) -> RepoResult:
+        """拉 + 入库。贴 URL 那条路只连一个仓库，没有并发可言，就直接串起来。"""
+        fetched = fetch_one_repo(full_name, token)
+        if isinstance(fetched, RepoResult):
+            return fetched
+        return store_one_repo(user_id, full_name, fetched)
+
+    @app.post("/api/v1/repos", response_model=RepoConnectResponse)
+    def connect_repo(
+        request: RepoConnectRequest, user_id: str = Depends(current_user_id)
+    ) -> RepoConnectResponse:
+        """连仓库：拉元数据 + README + 近期 commit + 顶层文件树 → 每个仓库一份 repo 料。
+
+        两个入口：`{url}` 贴一个地址，`{full_names}` 批量勾选。
+
+        **响应总是 200，失败装在逐项包络里。** 单个仓库时这看起来绕，但批量连仓
+        时「三个成功两个失败」没有一个 HTTP 状态码能表达——一项失败不该让已经拉
+        到的那几个也丢掉。
+
+        唯一的例外是请求本身不合法（400）：URL 认不出、`url` 和 `full_names` 都
+        没给或都给了。那时不存在「哪一项失败了」，逐项包络没有主键可用。
+
+        **有 token 就带上。** 于是贴 URL 那条路也能连私有仓——用户已经授权过了，
+        还要求他为私有仓换一个入口是没有道理的。
+
+        **upsert 而不是去重。** 同一个仓库重拉，内容几乎必然变了（新 commit、
+        改过的 README），按 content_hash 去重会让它在料列表里堆成好几条。仓库的
+        身份是 `full_name`，所以按 `(kind='repo', display_name=full_name)` 替换。
+        """
+        has_url = bool((request.url or "").strip())
+        has_names = request.full_names is not None
+        if has_url == has_names:
+            raise HTTPException(
+                status_code=400,
+                detail="给一个 url（贴地址），或者一组 full_names（批量勾选），二选一。",
+            )
+
+        token = tokens.get(user_id)
+
+        if has_url:
+            try:
+                full_name = parse_repo_url(request.url or "")
+            except RepoUrlError as error:
+                raise HTTPException(status_code=400, detail=str(error)) from error
+            return RepoConnectResponse(results=[connect_one_repo(user_id, full_name, token)])
+
+        names = request.full_names or []
+        if not names:
+            raise HTTPException(status_code=400, detail="一个仓库都没勾选。")
+
+        # 先把名字过一遍：形状不对的、重复的、超出上限的当场定案，剩下的才值得
+        # 去打 GitHub。**结果按请求里的顺序排**——用户勾选的顺序就是他阅读结果的
+        # 顺序，按完成先后返回会让同一次操作每次长得不一样。
+        planned: List[Any] = []       # RepoResult（已定案）或 str（待拉取）
+        seen: set = set()
+        for raw in names:
+            # 形状不对的那一项自己失败，不带走整批：批量请求里混进一个坏名字，
+            # 让另外十九个也拉不到是说不过去的。
+            try:
+                full_name = normalize_full_name(raw)
+            except RepoUrlError as error:
+                planned.append(
+                    RepoResult(
+                        full_name=str(raw), ok=False, error=str(error), error_kind="bad_name"
+                    )
+                )
+                continue
+            # 同一个仓库在一批里出现两次，第二次是 upsert 掉自己刚建的那份——
+            # 白打一轮 GitHub 请求，还会让前端收到两条 id 不同的同名料。
+            if full_name in seen:
+                continue
+            seen.add(full_name)
+
+            if len(seen) > MAX_BATCH_REPOS:
+                planned.append(
+                    RepoResult(
+                        full_name=full_name,
+                        ok=False,
+                        error=(
+                            f"一次最多连 {MAX_BATCH_REPOS} 个仓库，这个没连。"
+                            "分几批勾选就行。"
+                        ),
+                        # 自成一种，不能混进 fetch_failed：那一种前端会给「把
+                        # README 当文件上传」的兜底指引，而这一项的出路是「再勾
+                        # 一次」——给错建议比不给建议更耽误人。
+                        error_kind="overflow",
+                    )
+                )
+                continue
+            planned.append(full_name)
+
+        # 并发拉取，上限 MAX_CONCURRENCY。拉取是纯网络等待，串行跑 20 个仓库
+        # 就是 80 次 GitHub 往返排成一队——一个请求几分钟不返回，用户早以为
+        # 页面卡死了。上限不放开是因为配额：并发再高也只是更快撞限流。
+        pending = [name for name in planned if isinstance(name, str)]
+        fetched: Dict[str, Any] = {}
+        if pending:
+            with ThreadPoolExecutor(max_workers=min(MAX_CONCURRENCY, len(pending))) as pool:
+                futures = {
+                    pool.submit(fetch_one_repo, name, token): name for name in pending
+                }
+                for future in as_completed(futures):
+                    name = futures[future]
+                    try:
+                        fetched[name] = future.result()
+                    except Exception as error:  # noqa: BLE001 — 这一项失败，不是整批
+                        fetched[name] = _failed(
+                            name, f"没能从 GitHub 拉到 {name}：{error}", "fetch_failed"
+                        )
+
+        # 入库是顺序的：SQLite 写 + 「找同名旧料再替换」这一读一写不能并发。
+        results: List[RepoResult] = []
+        for item in planned:
+            if isinstance(item, RepoResult):
+                results.append(item)
+                continue
+            outcome = fetched[item]
+            results.append(
+                outcome
+                if isinstance(outcome, RepoResult)
+                else store_one_repo(user_id, item, outcome)
+            )
+
+        return RepoConnectResponse(results=results)
 
     @app.post(
         "/api/v1/grill/sessions",
