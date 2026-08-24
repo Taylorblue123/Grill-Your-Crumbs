@@ -574,6 +574,13 @@ textarea.cp-in::placeholder { color: var(--fg-mute); }
 .live-revise-h small { font-size: 11.5px; color: var(--fg-mute); }
 .live-chips { display: flex; gap: 6px; flex-wrap: wrap; margin-bottom: 8px; }
 .live-chips .tg[disabled] { opacity: .45; cursor: not-allowed; }
+/* 已经填进指令框的 chip。用蓝不用金：金色在这一屏是「拷问挖到的事实」的
+   专有语义，指令跟事实没关系，借它的颜色会稀释掉那层意思。 */
+.live-chips .tg.on {
+  background: var(--blue-bg);
+  border-color: var(--blue-bd);
+  color: var(--blue-ink);
+}
 .live-revise-row { display: flex; gap: 8px; align-items: stretch; }
 .live-input {
   flex: 1;
