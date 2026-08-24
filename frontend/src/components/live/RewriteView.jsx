@@ -7,6 +7,7 @@ import {
   requestRewrite,
 } from '../../api/client.js';
 import { useToast } from '../../hooks/useToast.jsx';
+import { useUi } from '../../hooks/useUi.jsx';
 
 /* ============================================================
    成稿对比（#screen=live 的收尾）
@@ -43,6 +44,33 @@ import { useToast } from '../../hooks/useToast.jsx';
    （风格模板不进后端是 issue #27 的显式裁决）。 */
 const CHIPS = ['更简洁', '口语一点', '去掉 AI 味', '压到一页'];
 
+/* 指令里的分句。追加和「哪几个 chip 已经在框里」共用它——两处各写一遍
+   分隔符的话，改了一处忘了另一处，chip 就会默默不再亮。 */
+const SEPARATORS = /[，,、;；。]\s*/;
+
+function instructionParts(text) {
+  return text.split(SEPARATORS).map((part) => part.trim()).filter(Boolean);
+}
+
+/* chip 往框里**追加**，不覆盖。
+
+   覆盖看着更「干净」，但它把用户已经打的字吞掉了——正在写「第二段砍一半」
+   的人顺手点一下「口语一点」，写到一半的话就没了，而且这是一次没有撤销的
+   吞。追加还顺带把 chip 变成可以叠的：「更简洁」+「去掉 AI 味」是一条很自然
+   的指令，覆盖式的 chip 逼用户二选一。
+
+   chip 填进去之后仍然是普通文本，用户接着改、接着删都行——它是起草的起点，
+   不是一个选中就锁死的模式。 */
+function appendChip(current, chip) {
+  const base = current.trim();
+  if (!base) return chip;
+  /* 已经点过的 chip 不重复堆上去：连点两下「更简洁」不该变成「更简洁，更简洁」。 */
+  if (instructionParts(base).includes(chip)) return base;
+  /* 用户自己已经点了句号或逗号收尾时不再补一个，否则接出「……。，压到一页」。 */
+  const joiner = SEPARATORS.test(base.slice(-1)) ? '' : '，';
+  return `${base}${joiner}${chip}`;
+}
+
 /* 成稿 → Markdown。段落之间空一行，就是全部规则——后端交回的是纯文本段落，
    没有标题层级可言，硬加 `#`/`-` 是在猜结构，猜错了用户粘出去还得自己删。 */
 function toMarkdown(segments) {
@@ -66,6 +94,7 @@ export default function RewriteView({
   sessionId, crumbs, facts, baselineName, closedBy, answered, onRestart,
 }) {
   const { show } = useToast();
+  const ui = useUi();
 
   const [latest, setLatest] = useState(null);      // 最新一版（改稿改的是它）
   const [viewing, setViewing] = useState(null);    // 正在看的那一版
@@ -134,8 +163,17 @@ export default function RewriteView({
     }
   }, [sessionId, pending, adopt]);
 
+  /* 换版本前把 hover 留下的痕迹擦干净。
+
+     点亮是「这一段依据账本里哪几条」的关系，而关系属于**某一版成稿**：v2 里
+     引用了 f3 的那一段，v1 里可能根本不存在。不擦的话，鼠标从段落移到版本条
+     的这一路上 `lit` 一直留着，换完版后账本里凭空亮着几条，指向的段落已经
+     不在纸上了——用户看到的是一条断掉的出处线。popover 同理：它锚在旧那一版
+     某个 DOM 节点的坐标上，那个节点马上就要被换掉。 */
   const peekVersion = useCallback(async (version) => {
     if (pending || version === viewing?.version) return;
+    setLit(EMPTY);
+    ui.hidePop();
     if (version === latest?.version) { setViewing(latest); return; }
     setPending(true);
     try {
@@ -146,7 +184,7 @@ export default function RewriteView({
     } finally {
       setPending(false);
     }
-  }, [sessionId, pending, viewing, latest]);
+  }, [sessionId, pending, viewing, latest, ui]);
 
   const markdown = useMemo(
     () => (viewing ? toMarkdown(viewing.segments) : ''),
@@ -171,6 +209,16 @@ export default function RewriteView({
   const aim = useCallback((factIds) => {
     setLit(factIds && factIds.length ? new Set(factIds) : EMPTY);
   }, []);
+
+  /* 指令框里现在含着哪几个 chip。读的是框里的文本而不是另存一份点击记录——
+     用户手打「更简洁」和点 chip 得到的是同一条指令，不该长得不一样。
+
+     只认完全相等的分句，不做包含匹配：「更简洁一点」不点亮「更简洁」。宁可
+     漏标也不错标——标错了用户会以为再点一下没用，而那一下其实是有效的。 */
+  const chipped = useMemo(() => {
+    const parts = new Set(instructionParts(instruction));
+    return new Set(CHIPS.filter((chip) => parts.has(chip)));
+  }, [instruction]);
 
   const crumbNames = useMemo(() => {
     const names = {};
@@ -318,7 +366,11 @@ export default function RewriteView({
             </div>
 
             {stale && (
-              <button type="button" className="act live-back" onClick={() => setViewing(latest)}>
+              <button
+                type="button"
+                className="act live-back"
+                onClick={() => peekVersion(latest.version)}
+              >
                 {`回到最新版 v${latest.version} →`}
               </button>
             )}
@@ -332,17 +384,23 @@ export default function RewriteView({
                   : <small>只改表达，不改事实——要求写进没挖到的经历会被拒。</small>}
               </div>
               <div className="live-chips">
-                {CHIPS.map((chip) => (
-                  <button
-                    key={chip}
-                    type="button"
-                    className="tg btn"
-                    onClick={() => setInstruction(chip)}
-                    disabled={pending}
-                  >
-                    {chip}
-                  </button>
-                ))}
+                {CHIPS.map((chip) => {
+                  /* 已经在框里的 chip 标出来——不是「选中态」，是告诉用户
+                     再点一下不会有事发生。 */
+                  const on = chipped.has(chip);
+                  return (
+                    <button
+                      key={chip}
+                      type="button"
+                      className={`tg btn${on ? ' on' : ''}`}
+                      aria-pressed={on}
+                      onClick={() => setInstruction((cur) => appendChip(cur, chip))}
+                      disabled={pending}
+                    >
+                      {chip}
+                    </button>
+                  );
+                })}
               </div>
               <div className="live-revise-row">
                 <textarea

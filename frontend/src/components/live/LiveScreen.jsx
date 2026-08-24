@@ -119,12 +119,6 @@ export default function LiveScreen() {
     setError(null);
     setPhase('loading');
     setStage(0);
-    /* 阶段文案按固定节奏走完就停在最后一句——它讲的是「正在做什么」，
-       不是进度条，所以不假装知道还剩多久。 */
-    const ticker = setInterval(
-      () => setStage((s) => Math.min(s + 1, STAGES.length - 1)),
-      4000,
-    );
     try {
       const result = await startGrillSession(jdText, picked.map((c) => c.id));
       setSession({ ...result, done: false });
@@ -141,10 +135,27 @@ export default function LiveScreen() {
       if (/连不上后端/.test(err.message)) {
         dispatch({ type: 'setBackend', backend: { status: 'offline', error: err.message } });
       }
-    } finally {
-      clearInterval(ticker);
     }
   };
+
+  /* 开场文案的节拍器挂在 phase 上，而不是塞在 `start` 里手动起停。
+
+     开场那一次 LLM 调用要读完全部料再规划挖掘树，十几秒起步；这几句话是
+     那段静默里唯一告诉用户「它在动」的东西。做成 effect 是因为**卸载**也得
+     停：用户在等待里点了「回落地页」，`start` 的 `finally` 要等请求回来才跑，
+     这中间 interval 还在往一个已经卸载的组件里 `setStage`。effect 的清理函数
+     是 React 唯一保证卸载时一定会跑的地方。
+
+     走完最后一句就停在那儿——它讲的是「正在做什么」，不是进度条，所以不假装
+     知道还剩多久，也不循环回第一句假装还在推进。 */
+  useEffect(() => {
+    if (phase !== 'loading') return undefined;
+    const ticker = setInterval(
+      () => setStage((s) => Math.min(s + 1, STAGES.length - 1)),
+      4000,
+    );
+    return () => clearInterval(ticker);
+  }, [phase]);
 
   /* 把一份会话投影铺进本地 state。恢复现场和「够了」收口都走它。 */
   const adopt = useCallback((projection) => {
