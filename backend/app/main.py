@@ -14,7 +14,10 @@ from fastapi.staticfiles import StaticFiles
 from .config import Settings
 from .database import Database
 from .extraction import ExtractionError, MEDIA_TYPES, extract_text, validate_extension
+from .github import GitHub, HttpGitHub
+from .llm import Llm, OpenAiLlm
 from .schemas import CrumbListResponse, CrumbView, HealthResponse, UploadResponse
+from .sessions import GrillSessionStore
 
 
 CHUNK_SIZE = 1024 * 1024
@@ -68,9 +71,22 @@ def make_crumb_view(row: Dict[str, Any], attachment: Optional[Dict[str, Any]] = 
     )
 
 
-def create_app(settings: Optional[Settings] = None) -> FastAPI:
+def create_app(
+    settings: Optional[Settings] = None,
+    llm: Optional[Llm] = None,
+    github: Optional[GitHub] = None,
+) -> FastAPI:
+    """应用工厂。
+
+    `llm` 与 `github` 是全代码库仅有的一处依赖注入点，位于最高点：不传就用真
+    实现，测试传假实现，于是会话状态机的行为可以在不打真网络、不烧 token 的
+    前提下从 HTTP 层驱动断言。
+    """
     app_settings = settings or Settings.from_env()
     database = Database(app_settings.database_path)
+    app_llm: Llm = llm or OpenAiLlm(app_settings.llm)
+    app_github: GitHub = github or HttpGitHub()
+    sessions = GrillSessionStore(app_settings.session_mirror_path)
 
     @asynccontextmanager
     async def lifespan(_: FastAPI):
@@ -86,6 +102,9 @@ def create_app(settings: Optional[Settings] = None) -> FastAPI:
     )
     app.state.settings = app_settings
     app.state.database = database
+    app.state.llm = app_llm
+    app.state.github = app_github
+    app.state.sessions = sessions
     app.add_middleware(
         CORSMiddleware,
         allow_origin_regex=r"^(null|https?://(localhost|127\.0\.0\.1)(:\d+)?)$",

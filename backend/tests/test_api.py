@@ -18,6 +18,8 @@ def make_client(tmp_path: Path, max_upload_bytes: int = 1024 * 1024) -> TestClie
         prototype_path=prototype,
         # 不指向真实的 frontend/dist：这些用例测的是 API，不该依赖前端构建过没有。
         frontend_dist=tmp_path / "frontend-dist",
+        # 同理，会话镜像必须落在 tmp_path 里，不能碰仓库根上的 data/。
+        session_mirror_path=tmp_path / "data" / "grill-sessions.json",
         max_upload_bytes=max_upload_bytes,
         demo_user_id=DEMO_USER,
     )
