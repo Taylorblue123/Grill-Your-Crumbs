@@ -42,7 +42,7 @@ def infer_kind(kind: str, suffix: str) -> str:
         if kind not in VALID_KINDS:
             raise HTTPException(status_code=422, detail="Invalid material kind")
         return kind
-    if suffix in {".pdf", ".docx"}:
+    if suffix in {".pdf", ".docx", ".html", ".htm"}:
         return "resume"
     return "notes"
 

@@ -22,9 +22,9 @@ than another proposed table.
 | `GET` | `/` | serve the built single-file prototype |
 
 `kind` accepts `auto`, `resume`, `repo`, `notes`, `diary`, `social`, `linkedin`, or `manual`.
-`auto` maps PDF/DOCX to `resume` and text-like files to `notes`.
+`auto` maps PDF/DOCX/HTML to `resume` and text-like files to `notes`.
 
-The demo accepts PDF, DOCX, TXT, Markdown, CSV, and JSON up to 10 MiB. Uploads are streamed to
+The demo accepts PDF, DOCX, HTML, TXT, Markdown, CSV, and JSON up to 10 MiB. Uploads are streamed to
 disk, hashed with SHA-256, and deduplicated per user. Extracted text becomes the `crumb.content`;
 the original file remains separate in `attachment`, so future re-extraction does not mutate the
 provenance record silently.
