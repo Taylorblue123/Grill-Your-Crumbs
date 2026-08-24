@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { useCallback, useEffect, useMemo, useState } from 'react';
 import TopBar from '../shell/TopBar.jsx';
 import UploadBox from '../setup/UploadBox.jsx';
 import RepoBox from '../setup/RepoBox.jsx';
@@ -166,13 +166,16 @@ export default function LiveScreen() {
   /* 会话恢复：进 Live 屏时拿 sessionStorage 里的 id 试着重连。
 
      会话 404（后端重启丢了）不是错误路径的一种，是有明确出路的一种状态——
-     出「重开一场」提示，而不是把它混进红色报错里吓人。 */
-  const restoredRef = useRef(false);
+     出「重开一场」提示，而不是把它混进红色报错里吓人。
+
+     这里**不能**用 ref 做「只跑一次」的闸：StrictMode 在开发模式下会把 effect
+     挂载 → 卸载 → 再挂载跑两遍。ref 挡住第二次，而第一次的清理函数已经把
+     `cancelled` 置真——唯一发出的那次请求回来后被当成过期丢掉，画面就永远停在
+     「正在接回」。`cancelled` 本身已经足够挡住过期的那次；`adopt` 是稳定的，
+     生产下这个 effect 也只跑一次。 */
   useEffect(() => {
-    if (restoredRef.current) return;
-    restoredRef.current = true;
     const saved = recallSession();
-    if (!saved) return;
+    if (!saved) return undefined;
 
     let cancelled = false;
     setPhase('restoring');
