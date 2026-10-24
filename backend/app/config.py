@@ -54,10 +54,10 @@ class Settings:
     upload_dir: Path
     prototype_path: Path
     frontend_dist: Path
-    # 拷问会话的 dev 镜像。会话本体活在内存里，这只是重启回读用的一份快照。
-    # 默认 None（不落镜像）而不是指向仓库根的 data/：手工构造 Settings 的地方
-    # （测试、脚本）不该因为忘了传这一项就把文件写进真仓库。`from_env` 会填上
-    # 真路径，跑起来的服务照常有镜像。
+    # 过去拷问会话的 dev 镜像路径。会话本体已改为落 SQLite（和料、附件同一个
+    # `database_path`），由 GrillSessionStore 直接读写那个库，重启后会话仍在。
+    # 这一项如今不再接线——保留着只是为了不惊动既有的 Settings 构造点；新代码
+    # 一律按 `database_path` 取会话持久化。
     session_mirror_path: Optional[Path] = None
     max_upload_bytes: int = 10 * 1024 * 1024
     demo_user_id: str = "00000000-0000-0000-0000-000000000001"

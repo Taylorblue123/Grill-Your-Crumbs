@@ -19,6 +19,7 @@
    后端不在时所有调用都抛错，由调用方降级成纯演示模式。
    ============================================================ */
 import { normalizeKind } from '../data/demo.js';
+import { getUserId } from './identity.js';
 
 /* dev 走 vite 代理，构建产物由 FastAPI 同源托管，两种情况都用相对路径。
    直接双击 dist/index.html（file:）时才回落到本地后端地址。 */
@@ -29,6 +30,16 @@ export const API_BASE =
     : '');
 
 const V1 = `${API_BASE}/api/v1`;
+
+/* 身份只挂这一处：每个请求都带 X-User-Id（本地令牌，见 identity.js），
+   后端据此隔离每个人的料与拷问会话。所有 fetch 走 authedFetch，
+   上传的 XHR 单独 setRequestHeader —— 两条路都发同一个 id。 */
+function authedFetch(url, init = {}) {
+  return fetch(url, {
+    ...init,
+    headers: { ...(init.headers || {}), 'X-User-Id': getUserId() },
+  });
+}
 
 /* 「后端没起来」的文案只此一份：它出现在每一个 fetch 的 catch 里，抄成几份
    之后改一个字就得全仓库搜一遍。 */
@@ -60,20 +71,20 @@ async function readError(response, fallback) {
 }
 
 export async function checkHealth() {
-  const response = await fetch(`${API_BASE}/api/health`);
+  const response = await authedFetch(`${API_BASE}/api/health`);
   if (!response.ok) throw new Error(`健康检查失败（HTTP ${response.status}）`);
   return response.json();
 }
 
 export async function listCrumbs() {
-  const response = await fetch(`${V1}/crumbs`);
+  const response = await authedFetch(`${V1}/crumbs`);
   if (!response.ok) throw new Error(await readError(response, `读取材料失败（HTTP ${response.status}）`));
   const payload = await response.json();
   return (payload.crumbs || []).map(toCrumb);
 }
 
 export async function deleteCrumb(id) {
-  const response = await fetch(`${V1}/crumbs/${encodeURIComponent(id)}`, { method: 'DELETE' });
+  const response = await authedFetch(`${V1}/crumbs/${encodeURIComponent(id)}`, { method: 'DELETE' });
   if (response.status === 404) throw new Error('这条材料在后端已经不存在了。');
   if (!response.ok) throw new Error(await readError(response, `删除失败（HTTP ${response.status}）`));
 }
@@ -110,7 +121,7 @@ export class RepoConnectError extends Error {
 async function postRepos(body) {
   let response;
   try {
-    response = await fetch(`${V1}/repos`, {
+    response = await authedFetch(`${V1}/repos`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(body),
@@ -191,7 +202,7 @@ export class GitHubAuthError extends Error {
 async function githubFetch(path, init, fallback) {
   let response;
   try {
-    response = await fetch(`${V1}/github/${path}`, init);
+    response = await authedFetch(`${V1}/github/${path}`, init);
   } catch {
     throw new Error(OFFLINE);
   }
@@ -248,7 +259,7 @@ export async function listGitHubRepos() {
 export async function startGrillSession(jdText, crumbIds) {
   let response;
   try {
-    response = await fetch(`${V1}/grill/sessions`, {
+    response = await authedFetch(`${V1}/grill/sessions`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ jd_text: jdText, crumb_ids: crumbIds }),
@@ -285,7 +296,7 @@ export class AnswerConflictError extends Error {
 export async function fetchGrillSession(sessionId) {
   let response;
   try {
-    response = await fetch(`${V1}/grill/sessions/${encodeURIComponent(sessionId)}`);
+    response = await authedFetch(`${V1}/grill/sessions/${encodeURIComponent(sessionId)}`);
   } catch {
     throw new Error('连不上后端。请按 backend/README.md 的命令启动服务后重试。');
   }
@@ -303,7 +314,7 @@ export async function fetchGrillSession(sessionId) {
 export async function stopGrillSession(sessionId) {
   let response;
   try {
-    response = await fetch(`${V1}/grill/sessions/${encodeURIComponent(sessionId)}/stop`, {
+    response = await authedFetch(`${V1}/grill/sessions/${encodeURIComponent(sessionId)}/stop`, {
       method: 'POST',
     });
   } catch {
@@ -323,7 +334,7 @@ export async function stopGrillSession(sessionId) {
 export async function submitGrillAnswer(sessionId, { questionId, answerText, chosenOption }) {
   let response;
   try {
-    response = await fetch(`${V1}/grill/sessions/${encodeURIComponent(sessionId)}/answers`, {
+    response = await authedFetch(`${V1}/grill/sessions/${encodeURIComponent(sessionId)}/answers`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
@@ -352,6 +363,7 @@ export function uploadAttachment(file, kind, onProgress) {
   return new Promise((resolve, reject) => {
     const xhr = new XMLHttpRequest();
     xhr.open('POST', `${V1}/attachments`);
+    xhr.setRequestHeader('X-User-Id', getUserId());
     xhr.upload.onprogress = (e) => {
       if (e.lengthComputable && onProgress) onProgress(Math.round((e.loaded / e.total) * 100));
     };
@@ -387,7 +399,7 @@ export function uploadAttachment(file, kind, onProgress) {
 export async function requestRewrite(sessionId, instruction = null) {
   let response;
   try {
-    response = await fetch(`${V1}/grill/sessions/${encodeURIComponent(sessionId)}/rewrite`, {
+    response = await authedFetch(`${V1}/grill/sessions/${encodeURIComponent(sessionId)}/rewrite`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ instruction }),
@@ -405,7 +417,7 @@ export async function requestRewrite(sessionId, instruction = null) {
 export async function fetchRewriteVersions(sessionId) {
   let response;
   try {
-    response = await fetch(
+    response = await authedFetch(
       `${V1}/grill/sessions/${encodeURIComponent(sessionId)}/rewrite/versions`,
     );
   } catch {
@@ -421,7 +433,7 @@ export async function fetchRewriteVersions(sessionId) {
 export async function fetchRewriteVersion(sessionId, version) {
   let response;
   try {
-    response = await fetch(
+    response = await authedFetch(
       `${V1}/grill/sessions/${encodeURIComponent(sessionId)}/rewrite/${version}`,
     );
   } catch {

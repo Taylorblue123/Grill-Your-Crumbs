@@ -526,9 +526,9 @@ def test_the_token_never_reaches_the_mirror_or_the_database(tmp_path: Path) -> N
         )
 
     written = [path for path in tmp_path.rglob("*") if path.is_file()]
-    # 确实写了东西——不然这个测试是在为一个空目录叫好。
+    # 确实写了东西——不然这个测试是在为一个空目录叫好。会话如今和料、附件一起
+    # 落进这个 .db，下面的全目录扫描连会话那一行也一并翻过。
     assert any(path.suffix == ".db" for path in written)
-    assert settings.session_mirror_path.exists()
 
     for path in written:
         blob = path.read_bytes()
@@ -537,15 +537,16 @@ def test_the_token_never_reaches_the_mirror_or_the_database(tmp_path: Path) -> N
         assert b"ghp_" not in blob, path
 
 
-def test_a_token_pasted_into_an_answer_is_scrubbed_from_the_mirror(tmp_path: Path) -> None:
+def test_a_token_pasted_into_an_answer_is_scrubbed_from_the_database(tmp_path: Path) -> None:
     """兜底那一道：用户完全可能把 PAT 贴进作答框，而那是自由文本，不是凭据字段。"""
+    from backend.app.database import Database
     from backend.app.sessions import GrillSessionStore
 
-    mirror = tmp_path / "data" / "grill-sessions.json"
-    store = GrillSessionStore(mirror)
-    store.create(history=[{"answer": f"我的 token 是 {TOKEN}，你自己看吧"}])
+    database = Database(tmp_path / "grill.db")
+    store = GrillSessionStore(database)
+    session_id = store.create(history=[{"answer": f"我的 token 是 {TOKEN}，你自己看吧"}])
 
-    blob = mirror.read_text(encoding="utf-8")
+    blob = database.get_grill_session(session_id)
 
     assert TOKEN not in blob
     assert "[redacted]" in blob

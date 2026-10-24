@@ -40,6 +40,11 @@ CREATE TABLE IF NOT EXISTS attachment (
 
 CREATE INDEX IF NOT EXISTS attachment_user_created_at
     ON attachment (user_id, created_at DESC);
+
+CREATE TABLE IF NOT EXISTS grill_session (
+    id TEXT PRIMARY KEY,
+    state TEXT NOT NULL
+);
 """
 
 
@@ -191,4 +196,39 @@ class Database:
                 "DELETE FROM crumb WHERE user_id = ? AND id = ?", (user_id, crumb_id)
             )
             return dict(row)
+
+    # --- 拷问会话 -----------------------------------------------------------
+    #
+    # 会话状态是一棵嵌套的 dict（事实账本、成稿版本、挖掘树……），整块以序列化
+    # 的 JSON 存一个 TEXT 列。拆成列会把「会话状态的形状」这件由拷问端点决定的
+    # 事硬编进建库脚本里——加一个字段就得改 schema。GrillSessionStore 负责序列化
+    # 与凭据过滤，这一层只认 id → 一段文本。
+
+    def get_grill_session(self, session_id: str) -> Optional[str]:
+        with self.connect() as connection:
+            row = connection.execute(
+                "SELECT state FROM grill_session WHERE id = ?", (session_id,)
+            ).fetchone()
+            return row["state"] if row else None
+
+    def put_grill_session(self, session_id: str, state: str) -> None:
+        """落库一场会话：没有就插入，有就整块覆盖。
+
+        create 与 update 走的是同一条路——两者的区别（新 id / 已有 id）由
+        GrillSessionStore 守着，这一层只管「把这段文本钉在这个 id 上」。
+        """
+        with self.connect() as connection:
+            connection.execute(
+                """
+                INSERT INTO grill_session (id, state) VALUES (?, ?)
+                ON CONFLICT(id) DO UPDATE SET state = excluded.state
+                """,
+                (session_id, state),
+            )
+
+    def delete_grill_session(self, session_id: str) -> None:
+        with self.connect() as connection:
+            connection.execute(
+                "DELETE FROM grill_session WHERE id = ?", (session_id,)
+            )
 
