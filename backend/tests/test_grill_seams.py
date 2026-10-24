@@ -1,7 +1,10 @@
-"""拷问链路的三处接缝：适配器注入、LLM 封装的失败语义、拷问会话仓的镜像行为。
+"""拷问链路的三处接缝：适配器注入、LLM 封装的失败语义、拷问会话仓的落库行为。
 
 这些用例不打真网络、不需要真 key——LLM 与 GitHub 走假实现，OpenAI 客户端走
 一个记录调用的替身。
+
+会话仓那一节测的是「落 SQLite、重启后仍在」：GrillSessionStore 直接读写同一个
+`database_path` 下的 `grill_session` 表，重启=用同一个库新建第二个仓实例。
 """
 
 import json
@@ -12,6 +15,7 @@ import pytest
 from fastapi.testclient import TestClient
 
 from backend.app.config import LlmSettings, Settings
+from backend.app.database import Database
 from backend.app.llm import LlmError, OpenAiLlm
 from backend.app.main import create_app
 from backend.app.sessions import GrillSessionStore, scrub_secrets
@@ -226,48 +230,54 @@ def test_llm_without_api_key_fails_loudly(tmp_path: Path) -> None:
         call(llm)
 
 
-# --- 拷问会话内存仓 ---------------------------------------------------------
+# --- 拷问会话落库 -----------------------------------------------------------
 
 
-def test_session_state_is_mirrored_to_disk_on_every_change(tmp_path: Path) -> None:
-    mirror = tmp_path / "data" / "grill-sessions.json"
-    store = GrillSessionStore(mirror)
+def make_store(tmp_path: Path) -> GrillSessionStore:
+    """一个指向 tmp_path 库的会话仓。重启=用同一个库另建一个仓实例。"""
+    return GrillSessionStore(Database(tmp_path / "grill.db"))
+
+
+def raw_state(tmp_path: Path, session_id: str) -> str:
+    """直接从库里读那一行的原始 JSON——断言「落盘的那份」长什么样。"""
+    stored = Database(tmp_path / "grill.db").get_grill_session(session_id)
+    assert stored is not None
+    return stored
+
+
+def test_session_state_is_persisted_on_every_change(tmp_path: Path) -> None:
+    store = make_store(tmp_path)
 
     session_id = store.create(target_text="后端实习", facts=[])
-    assert json.loads(mirror.read_text(encoding="utf-8"))[session_id]["target_text"] == "后端实习"
+    assert json.loads(raw_state(tmp_path, session_id))["target_text"] == "后端实习"
 
     fact = {"text": "把延迟从 800ms 压到 120ms", "source": "turn:1"}
     store.update(session_id, facts=[fact])
-    mirrored = json.loads(mirror.read_text(encoding="utf-8"))
-    assert mirrored[session_id]["facts"] == [fact]
+    assert json.loads(raw_state(tmp_path, session_id))["facts"] == [fact]
 
     store.delete(session_id)
-    assert json.loads(mirror.read_text(encoding="utf-8")) == {}
+    assert Database(tmp_path / "grill.db").get_grill_session(session_id) is None
 
 
 def test_sessions_survive_a_restart(tmp_path: Path) -> None:
-    mirror = tmp_path / "data" / "grill-sessions.json"
-    session_id = GrillSessionStore(mirror).create(target_text="后端实习", facts=[])
+    session_id = make_store(tmp_path).create(target_text="后端实习", facts=[])
 
-    restarted = GrillSessionStore(mirror)
+    # 重启：同一个库，新的仓实例。进程内存里什么都没剩，会话仍读得回来。
+    restarted = make_store(tmp_path)
 
     assert restarted.get(session_id)["target_text"] == "后端实习"
 
 
-def test_corrupt_mirror_cold_starts_instead_of_crashing(tmp_path: Path) -> None:
-    mirror = tmp_path / "data" / "grill-sessions.json"
-    mirror.parent.mkdir(parents=True)
-    mirror.write_text("{ this is not json", encoding="utf-8")
-
-    store = GrillSessionStore(mirror)
+def test_a_fresh_database_has_no_sessions(tmp_path: Path) -> None:
+    """库是空的就是空的——未知 id 一律 None，新会话照常能建。"""
+    store = make_store(tmp_path)
 
     assert store.get("anything") is None
-    assert store.create(target_text="fresh")  # 损坏的镜像被覆盖，新会话照常能建
+    assert store.create(target_text="fresh")
 
 
-def test_tokens_never_reach_the_mirror(tmp_path: Path) -> None:
-    mirror = tmp_path / "data" / "grill-sessions.json"
-    store = GrillSessionStore(mirror)
+def test_tokens_never_reach_the_database(tmp_path: Path) -> None:
+    store = make_store(tmp_path)
 
     session_id = store.create(
         token="ghp_supersecret",
@@ -276,32 +286,33 @@ def test_tokens_never_reach_the_mirror(tmp_path: Path) -> None:
         target_text="后端实习",
     )
 
-    raw = mirror.read_text(encoding="utf-8")
+    raw = raw_state(tmp_path, session_id)
     assert "ghp_" not in raw
     assert "后端实习" in raw
-    assert json.loads(raw)[session_id]["nested"] == {"repo": "me/repo"}
-    # 内存里 token 照常在——只是永不落盘。
-    assert store.get(session_id)["token"] == "ghp_supersecret"
+    assert json.loads(raw)["nested"] == {"repo": "me/repo"}
+    # 凭据在写库前就被剔除，读回来也没有——会话端点从不把它再读出来用
+    # （PAT 走 tokens.TokenStore，与会话无关）。
+    assert "token" not in store.get(session_id)
 
 
-def test_tokens_pasted_into_free_text_never_reach_the_mirror(tmp_path: Path) -> None:
+def test_tokens_pasted_into_free_text_never_reach_the_database(tmp_path: Path) -> None:
     """按字段名剔除拦不住「用户把 PAT 贴进作答框」，所以自由文本也要扫一遍。"""
-    mirror = tmp_path / "data" / "grill-sessions.json"
-    store = GrillSessionStore(mirror)
+    store = make_store(tmp_path)
 
     session_id = store.create(
         history=[{"answer": "我的 token 是 ghp_supersecret1234，用它拉的仓库"}],
         notes="key sk-abcdef1234567890abcdef 也不该落盘",
     )
 
-    raw = mirror.read_text(encoding="utf-8")
+    raw = raw_state(tmp_path, session_id)
     assert "ghp_supersecret1234" not in raw
     assert "sk-abcdef1234567890abcdef" not in raw
     assert "用它拉的仓库" in raw  # 用户的话本身留着，只挖掉凭据
     # 普通的连字符词不该被误伤——「sk-」太像正常词，只有够长才当凭据处理。
     assert scrub_secrets("我在 sk-learning 平台学过") == "我在 sk-learning 平台学过"
-    # 内存里原文照旧——只是永不落盘。
-    assert "ghp_supersecret1234" in store.get(session_id)["history"][0]["answer"]
+    # 读回来的历史里凭据也被挖掉了，用户的话本身留着。
+    assert "ghp_supersecret1234" not in store.get(session_id)["history"][0]["answer"]
+    assert "用它拉的仓库" in store.get(session_id)["history"][0]["answer"]
 
 
 def test_scrub_secrets_leaves_ordinary_state_alone() -> None:
@@ -311,7 +322,7 @@ def test_scrub_secrets_leaves_ordinary_state_alone() -> None:
 
 
 def test_store_hands_out_copies_not_live_state(tmp_path: Path) -> None:
-    store = GrillSessionStore(tmp_path / "mirror.json")
+    store = make_store(tmp_path)
     session_id = store.create(facts=[])
 
     store.get(session_id)["facts"].append("偷偷加的")

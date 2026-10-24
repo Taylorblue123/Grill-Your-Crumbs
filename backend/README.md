@@ -39,8 +39,8 @@ listed in `.env.example`. The local demo uses one fixed user id; production must
   基准），否则 422；多份简历取 `synced_at` 最新的一份，响应里回显 `baseline_crumb_id`。
 - **错误码**：JD 为空 400；选中的料一份都不存在、或里面没有简历 422；LLM 失败或规划出
   空树 502（规划无副作用，可安全重发）。
-- **会话**在内存里（`GrillSessionStore`），后端重启即丢；`data/grill-sessions.json` 只是
-  dev 镜像，token 永不落盘。
+- **会话**落 SQLite（`grill_session` 表，和 crumb 同一个 `database_path`），后端重启仍在、
+  能接着答；token 永不入库（写库前 `scrub_secrets` 剔除）。
 
 `POST /api/v1/grill/sessions/{id}/answers` 答一轮：`{question_id, answer_text, chosen_option}` →
 一次 LLM 调用完成「抽事实入账本 + 更新树 + 出下一题或收口」→ `{facts, question|null, done}`。
@@ -96,8 +96,8 @@ listed in `.env.example`. The local demo uses one fixed user id; production must
 前端的真实链路在 `#screen=live`（落地页有独立入口），和剧本 demo 完全分开。
 拷问收口或中断之后自动出初稿，左右对比视图（左原简历、右成稿）沿用成果页版式与
 `.sg` 三色出处的 CSS，数据一个字都不来自剧本假数据。
-会话 id 存在 sessionStorage，进 Live 屏时自动重连；会话 404（后端重启丢会话）
-时给「重开一场」提示。
+会话 id 存在 sessionStorage，进 Live 屏时自动重连（会话已落库，后端重启后仍能接回）；
+会话确实不存在（404）时给「重开一场」提示。
 
 需要一个真 key 才跑得动（见 `.env.example`）。测试里 LLM 走假实现，不打网络。
 

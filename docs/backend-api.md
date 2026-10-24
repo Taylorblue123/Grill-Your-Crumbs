@@ -99,12 +99,14 @@ rejects here is dropped on the spot, since every later call would hit the same w
 The PAT lives only in `backend/app/tokens.py`'s `TokenStore` — a plain in-memory dict, keyed by
 user, with no mirror, no SQLite table, and a `__repr__` that reports a count rather than contents.
 "Never persisted" is a property of the type, not a rule callers have to remember. Restarting the
-process drops every token, which is deliberate: sessions are in-memory too, and a credential that
-outlives its session is just one more thing to clean up.
+process drops every token, which is deliberate: a credential that outlives its session is just one
+more thing to clean up. (Sessions themselves now persist to SQLite — the `grill_session` table — so
+they survive a restart; tokens deliberately do not.)
 
-The session mirror (`data/grill-sessions.json`) is the second line of defense, for the other leak
-path: a user pasting a PAT into an answer box. `sessions.scrub_secrets` strips secret-named fields
-and redacts token-shaped strings from free text on every dump.
+Session persistence is also the second line of defense for the other leak path: a user pasting a PAT
+into an answer box. `sessions.scrub_secrets` strips secret-named fields and redacts token-shaped
+strings from free text before every write to the `grill_session` table, so no credential reaches
+the database even if it slips into session state.
 
 `backend/tests/test_github_pat_api.py::test_the_token_never_reaches_the_mirror_or_the_database`
 drives the whole chain and then greps every byte under `data/` — the whole directory, not just the

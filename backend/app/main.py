@@ -193,7 +193,7 @@ def create_app(
     database = Database(app_settings.database_path)
     app_llm: Llm = llm or OpenAiLlm(app_settings.llm)
     app_github: GitHub = github or HttpGitHub()
-    sessions = GrillSessionStore(app_settings.session_mirror_path)
+    sessions = GrillSessionStore(database)
     # GitHub 凭据仓：纯内存，无镜像、无 SQLite。见 tokens.TokenStore 的
     # 模块注释——「PAT 不落任何地方」是那个类型本身的性质，不靠这里自觉。
     tokens = TokenStore()
@@ -684,7 +684,7 @@ def create_app(
         """
         session = sessions.get(session_id)
         if session is None or session.get("user_id") != user_id:
-            raise HTTPException(status_code=404, detail="这场拷问不在了。后端重启会丢掉进行中的会话。")
+            raise HTTPException(status_code=404, detail="没有这场拷问。")
         return session
 
     @app.get("/api/v1/grill/sessions/{session_id}", response_model=GrillSessionView)
@@ -693,7 +693,8 @@ def create_app(
     ) -> GrillSessionView:
         """会话全投影，供刷新后重连现场。
 
-        会话活在内存里，后端重启即丢——那时这里 404，前端据此给「重开一场」提示。
+        会话落 SQLite，后端重启仍在——刷新、重启后前端拿这一个响应就能重画现场。
+        只有真不存在（或不属于当前用户）的会话才 404。
         """
         return session_projection(session_id, load_session(session_id, user_id))
 
@@ -797,7 +798,7 @@ def create_app(
         """取底稿简历的正文。
 
         会话只记 `baseline_crumb_id`，正文每次现从库里读——把整份简历也塞进会话
-        状态会让内存仓和 dev 镜像里多一份随时可能和料库对不上的副本。
+        状态会让会话仓里多一份随时可能和料库对不上的副本。
         料被删掉是可能的（用户在别处删了它），那时底稿为空串：改写照样能跑，
         只是左边没有可比的原文，成稿全部落在账本上。
         """
