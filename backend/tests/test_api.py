@@ -192,3 +192,41 @@ def test_html_upload_survives_unclosed_head(tmp_path: Path) -> None:
         content = response.json()["crumb"]["content"]
         assert "正文还在" in content
         assert "简历" not in content  # <title> 是元数据，不是简历正文
+
+
+def test_two_distinct_user_headers_cannot_see_each_others_crumbs(tmp_path: Path) -> None:
+    """#43 身份隔离：带不同 X-User-Id 的请求，各自的料互不可见。
+
+    前端现在给每个浏览器发一个本地令牌当 X-User-Id（见 frontend/src/api/identity.js），
+    后端据此隔离。这里从 HTTP 层验证隔离真的成立——这是本票的核心验收。
+    """
+    alice = "11111111-1111-4111-8111-111111111111"
+    bob = "22222222-2222-4222-8222-222222222222"
+    with make_client(tmp_path) as client:
+        # alice 上传一份料
+        made = client.post(
+            "/api/v1/attachments",
+            data={"kind": "notes"},
+            files={"file": ("alice.md", "Alice's private notes.", "text/markdown")},
+            headers={"X-User-Id": alice},
+        )
+        assert made.status_code == 201
+        alice_crumb_id = made.json()["crumb"]["id"]
+
+        # alice 看得见自己的
+        alice_list = client.get("/api/v1/crumbs", headers={"X-User-Id": alice}).json()["crumbs"]
+        assert [c["id"] for c in alice_list] == [alice_crumb_id]
+
+        # bob 看不见 alice 的料
+        bob_list = client.get("/api/v1/crumbs", headers={"X-User-Id": bob}).json()["crumbs"]
+        assert bob_list == []
+
+        # bob 删不掉 alice 的料（按 user 隔离，返回 404）
+        deleted = client.delete(
+            f"/api/v1/crumbs/{alice_crumb_id}", headers={"X-User-Id": bob}
+        )
+        assert deleted.status_code == 404
+
+        # alice 的料仍在
+        still = client.get("/api/v1/crumbs", headers={"X-User-Id": alice}).json()["crumbs"]
+        assert [c["id"] for c in still] == [alice_crumb_id]

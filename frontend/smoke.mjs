@@ -69,8 +69,12 @@ const uploadedCard = page.locator('.crumbgrid .cr', { hasText: 'chen-notes.md' }
 check('上传的材料进入本场', await uploadedCard.count() === 1);
 check('上传的材料可删除（后端 DELETE）', await uploadedCard.locator('.crx').isVisible());
 
-// 后端真的存下来了吗
-const listed = await page.evaluate(async () => (await fetch('/api/v1/crumbs')).json());
+// 后端真的存下来了吗 —— 必须带和 UI 同一个身份（本地令牌，见 src/api/identity.js），
+// 否则这条裸 fetch 会命中 demo 用户兜底，和 UI 上传的那个 uuid 用户对不上。
+const listed = await page.evaluate(async () => {
+  const id = localStorage.getItem('grill_user_id');
+  return (await fetch('/api/v1/crumbs', { headers: { 'X-User-Id': id } })).json();
+});
 check('GET /api/v1/crumbs 返回它',
   listed.crumbs.some((c) => c.display_name === 'chen-notes.md'),
   `后端现有 ${listed.crumbs.length} 条`);
